@@ -1,8 +1,9 @@
 '''TestPyRAM class definition'''
-
+import os
 import unittest
 import numpy
 from pyram.PyRAM import PyRAM
+ROOT = os.path.dirname(__file__)
 
 
 class TestPyRAM(unittest.TestCase):
@@ -34,7 +35,7 @@ class TestPyRAM(unittest.TestCase):
                            rbzb=numpy.array([[0, 200],
                                              [40000, 400]]))
 
-        ref_tl_file = 'tl_ref.line'
+        ref_tl_file = os.path.join(ROOT, 'tl_ref.line')
         dat = numpy.fromfile(ref_tl_file, sep='\t').reshape([100, 2])
         self.ref_r, self.ref_tl = dat[:, 0], dat[:, 1]
 
@@ -64,6 +65,7 @@ class TestPyRAM(unittest.TestCase):
         mean_diff = numpy.mean(numpy.abs(pyram.tll - self.ref_tl))
         self.assertTrue(mean_diff <= self.tl_tol,
                         'Mean TL difference with reference result not within tolerance')
+
 
 if __name__ == "__main__":
     unittest.main()

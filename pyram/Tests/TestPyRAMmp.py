@@ -5,7 +5,7 @@ Computational range and depth steps and number of repetitions are configurable.
 Number of PyRAM runs = number of frequencies * number of repetitions.
 Tests should always pass but speedup will depend upon computing environment.
 '''
-
+import os
 import unittest
 import xml.etree.ElementTree as et
 from time import time
@@ -13,6 +13,7 @@ from copy import deepcopy
 import numpy
 from pyram.PyRAMmp import PyRAMmp
 from pyram.PyRAM import PyRAM
+ROOT = os.path.dirname(__file__)
 
 
 class TestPyRAMmp(unittest.TestCase):
@@ -23,7 +24,7 @@ class TestPyRAMmp(unittest.TestCase):
 
     def setUp(self):
 
-        config_file = 'TestPyRAMmp_Config.xml'
+        config_file = os.path.join(ROOT, 'TestPyRAMmp_Config.xml')
         root = et.parse(config_file).getroot()
 
         for child in root:
@@ -133,6 +134,7 @@ class TestPyRAMmp(unittest.TestCase):
         print('Finished.\n')
         speed_fact = 100 * (self.proc_time / nproc) / self.elap_time
         print('{0:.1f} % of expected speed up achieved'.format(speed_fact))
+
 
 if __name__ == "__main__":
     unittest.main()
