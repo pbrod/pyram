@@ -45,7 +45,6 @@ class TestPyRAM(unittest.TestCase):
         pass
 
     def test_PyRAM(self):
-
         pyram = PyRAM(self.inputs['freq'], self.inputs['zs'], self.inputs['zr'],
                       self.inputs['z_ss'], self.inputs['rp_ss'], self.inputs['cw'],
                       self.inputs['z_sb'], self.inputs['rp_sb'], self.inputs['cb'],
