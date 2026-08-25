@@ -34,6 +34,11 @@ from pyram.matrc import matrc
 from pyram.outpt import outpt
 from pyram.solve import solve
 
+__all__ = (
+    "PyRAM",
+    "arctic_profile",
+    "munk_profile",
+)
 
 def arctic_profile(
     z,
@@ -155,7 +160,7 @@ def munk_profile(
 
 class PyRAM:
     """
-    Range dependent Acoustic Model (RAM)
+    Range-dependent Acoustic Model (RAM)
 
     Parameters
     ----------
@@ -308,14 +313,21 @@ class PyRAM:
 
     def run(self):
         """
-        Run the model. Sets the following instance variables:
-        vr: Calculation ranges (m), NumPy 1D array.
-        vz: Calculation depths (m), NumPy 1D array.
-        tll: Transmission loss (dB) at receiver depth (zr),
-             NumPy 1D array, length vr.size.
-        tlg: Transmission loss (dB) grid,
-             NumPy 2D array, dimensions vz.size by vr.size.
-        proc_time: Processing time (s).
+        Run the acoustic propagation model.
+
+        Returns
+        -------
+        dict
+            Dictionary containing ranges, depths, transmission loss,
+            complex pressure, processing time, and model metadata:
+
+            vr: Calculation ranges (m), NumPy 1D array.
+            vz: Calculation depths (m), NumPy 1D array.
+            tll: Transmission loss (dB) at receiver depth (zr),
+                NumPy 1D array, length vr.size.
+            tlg: Transmission loss (dB) grid,
+                NumPy 2D array, dimensions vz.size by vr.size.
+            proc_time: Processing time (s).
         """
 
         t0 = process_time()
@@ -376,54 +388,59 @@ class PyRAM:
         return results
 
     def check_inputs(self, z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb):
-        """
-        Basic checks on dimensions of inputs
-        """
-
-        self._status_ok = True
+        """Validate and store model inputs."""
 
         # Source and receiver depths
         if not z_ss[0] <= self._zs <= z_ss[-1]:
-            self._status_ok = False
             raise ValueError("Source depth outside sound speed depths")
-        if not z_ss[0] <= self._zr <= z_ss[-1]:
-            self._status_ok = False
-            raise ValueError("Receiver depth outside sound speed depths")
-        if self._status_ok:
-            self._z_ss = z_ss
 
-        # Water sound speed profiles
-        num_depths = self._z_ss.size
-        num_ranges = rp_ss.size
-        cw_dims = cw.shape
-        if (cw_dims[0] == num_depths) and (cw_dims[1] == num_ranges):
-            self._rp_ss, self._cw = rp_ss, cw
-        else:
-            raise ValueError("Dimensions of z_ss, rp_ss and cw must be consistent.")
+        if not z_ss[0] <= self._zr <= z_ss[-1]:
+            raise ValueError("Receiver depth outside sound speed depths")
+
+        # Water sound-speed profiles
+        if cw.shape != (z_ss.size, rp_ss.size):
+            raise ValueError(
+                "Dimensions of z_ss, rp_ss, and cw must be consistent."
+            )
 
         # Seabed profiles
-        self._z_sb = z_sb
-        num_depths = self._z_sb.size
-        num_ranges = rp_sb.size
-        for prof in [cb, rhob, attn]:
-            prof_dims = prof.shape
-            if (prof_dims[0] != num_depths) or (prof_dims[1] != num_ranges):
-                self._status_ok = False
-        if self._status_ok:
-            self._rp_sb, self._cb, self._rhob, self._attn = rp_sb, cb, rhob, attn
-        else:
-            raise ValueError("Dimensions of z_sb, rp_sb, cb, rhob and attn must be consistent.")
+        expected_shape = (z_sb.size, rp_sb.size)
 
-        if rbzb[:, 1].max() <= self._z_ss[-1]:
-            self._rbzb = rbzb
-        else:
-            self._status_ok = False
-            raise ValueError("Deepest sound speed point must be at or below deepest bathymetry point.")
+        for _name, profile in (
+            ("cb", cb),
+            ("rhob", rhob),
+            ("attn", attn),
+        ):
+            if profile.shape != expected_shape:
+                raise ValueError(
+                    "Dimensions of z_sb, rp_sb, cb, rhob, and attn "
+                    "must be consistent."
+                )
 
-        # Set flags for range-dependence (water SSP, seabed profile, bathymetry)
-        self.rd_ss = True if self._rp_ss.size > 1 else False
-        self.rd_sb = True if self._rp_sb.size > 1 else False
-        self.rd_bt = True if self._rbzb.shape[0] > 1 else False
+        # Bathymetry
+        if rbzb[:, 1].max() > z_ss[-1]:
+            raise ValueError(
+                "Deepest sound speed point must be at or below "
+                "deepest bathymetry point."
+            )
+
+        # Store copies to avoid modifying caller-owned arrays
+        self._z_ss = np.array(z_ss, copy=True)
+        self._rp_ss = np.array(rp_ss, copy=True)
+        self._cw = np.array(cw, copy=True)
+
+        self._z_sb = np.array(z_sb, copy=True)
+        self._rp_sb = np.array(rp_sb, copy=True)
+        self._cb = np.array(cb, copy=True)
+        self._rhob = np.array(rhob, copy=True)
+        self._attn = np.array(attn, copy=True)
+
+        self._rbzb = np.array(rbzb, copy=True)
+
+        # Range-dependence flags
+        self.rd_ss = self._rp_ss.size > 1
+        self.rd_sb = self._rp_sb.size > 1
+        self.rd_bt = self._rbzb.shape[0] > 1
 
     def set_params(self, **kwargs):
         """Set the parameters from the keyword arguments"""

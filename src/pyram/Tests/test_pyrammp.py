@@ -60,12 +60,10 @@ def test_pyrammp():
     ref_tl = []
 
     for freq in freqs:
-        args = deepcopy(pyram_args)
-        kwargs = deepcopy(pyram_kwargs)
         result = PyRAM(
             freq=freq,
-            **args,
-            **kwargs,
+            **pyram_args,
+            **pyram_kwargs,
         ).run()
 
         ref_r.append(result["Ranges"])
