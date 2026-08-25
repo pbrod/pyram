@@ -52,7 +52,7 @@ class PyRAM:
     rhob: Seabed density values (g/cm3), same dimensions as cb
     attn: Seabed attenuation values (dB/wavelength), same dimensions as cb
     rbzb: Bathymetry (m), Numpy 2D array with columns of ranges and depths
-    ---------
+
     kwargs...
     ---------
     np: Number of Pade terms. Defaults to _np_default.
@@ -68,6 +68,22 @@ class PyRAM:
     lyrw: Absorbing layer width (wavelengths). Defaults to _lyrw_default.
     NB: original zmax input not needed due to lyrw.
     id: Integer identifier for this instance.
+
+    Notes
+    -----
+    Picking the correct grid size for ultimate speed is important.
+    While coarser grid is faster, it will not be as accurate.
+    A dz=1.0 is OK., while a dz=0.2 will produce more accurate results
+    but take an order of magnitude longer to complete. This value is also
+    dependent on frequency, with higher frequencies demanding smaller values.
+    For fc=250Hz, dz=0.2 is probably closer to what is needed.
+
+    The code is less sensitive to the range step (dr), but this value should
+    be set small enough so that the PE converges. Also, N*dr should equal
+    the sound-speed horizontal sampling distance, where N is an integer.
+    So if you've used a sound speed grid of 1000m, dr=250 should work,
+    but if you use a sound speed grid of 400m, then set dr=200m. The
+    value of dr is inversely proportional to computation time.
     """
 
     _np_default = 8
