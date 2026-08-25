@@ -1,9 +1,9 @@
 """Tests for PyRAMmp."""
 
+import xml.etree.ElementTree as et
 from copy import deepcopy
 from pathlib import Path
 from time import time
-import xml.etree.ElementTree as et
 
 import numpy as np
 

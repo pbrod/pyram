@@ -34,8 +34,6 @@ from pyram.matrc import matrc
 from pyram.outpt import outpt
 from pyram.solve import solve
 
-from numpy.typing import ArrayLike
-
 
 def arctic_profile(
     z,
