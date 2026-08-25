@@ -27,6 +27,7 @@ and depth steps (though these can be overridden using keyword arguments).
 
 import warnings
 from time import process_time
+from typing import NamedTuple
 
 import numpy as np
 
@@ -39,6 +40,44 @@ __all__ = (
     "arctic_profile",
     "munk_profile",
 )
+
+
+class PyRAMResults(NamedTuple):
+    """
+    Results returned by PyRAM.run().
+
+    Attributes
+    ----------
+    ranges : ndarray
+        Calculation ranges [m].
+    depths : ndarray
+        Calculation depths [m].
+    loss_grid : ndarray
+        Transmission loss [dB] over depth and range.
+    loss_line : ndarray
+        Transmission loss [dB] at receiver depth.
+    pressure_grid : ndarray
+        Complex pressure field.
+    pressure_line : ndarray
+        Complex pressure at receiver depth.
+    c0 : float
+        Reference sound speed [m/s].
+    proc_time : float
+        Processing time [s].
+    id : int
+        Run identifier.
+    """
+
+    ranges: np.ndarray
+    depths: np.ndarray
+    loss_grid: np.ndarray
+    loss_line: np.ndarray
+    pressure_grid: np.ndarray
+    pressure_line: np.ndarray
+    c0: float
+    proc_time: float
+    id: int
+
 
 def arctic_profile(
     z,
@@ -373,19 +412,17 @@ class PyRAM:
 
         self.proc_time = process_time() - t0
 
-        results = {
-            "ID": self._id,
-            "Proc Time": self.proc_time,
-            "Ranges": self.vr,
-            "Depths": self.vz,
-            "TL Grid": self.tlg,
-            "TL Line": self.tll,
-            "CP Grid": self.cpg,
-            "CP Line": self.cpl,
-            "c0": self._c0,
-        }
-
-        return results
+        return PyRAMResults(
+            ranges=self.vr,
+            depths=self.vz,
+            loss_grid=self.tlg,
+            loss_line=self.tll,
+            pressure_grid=self.cpg,
+            pressure_line=self.cpl,
+            c0=self._c0,
+            proc_time=self.proc_time,
+            id=self._id,
+        )
 
     def check_inputs(self, z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb):
         """Validate and store model inputs."""
@@ -399,9 +436,7 @@ class PyRAM:
 
         # Water sound-speed profiles
         if cw.shape != (z_ss.size, rp_ss.size):
-            raise ValueError(
-                "Dimensions of z_ss, rp_ss, and cw must be consistent."
-            )
+            raise ValueError("Dimensions of z_ss, rp_ss, and cw must be consistent.")
 
         # Seabed profiles
         expected_shape = (z_sb.size, rp_sb.size)
@@ -412,17 +447,11 @@ class PyRAM:
             ("attn", attn),
         ):
             if profile.shape != expected_shape:
-                raise ValueError(
-                    "Dimensions of z_sb, rp_sb, cb, rhob, and attn "
-                    "must be consistent."
-                )
+                raise ValueError("Dimensions of z_sb, rp_sb, cb, rhob, and attn must be consistent.")
 
         # Bathymetry
         if rbzb[:, 1].max() > z_ss[-1]:
-            raise ValueError(
-                "Deepest sound speed point must be at or below "
-                "deepest bathymetry point."
-            )
+            raise ValueError("Deepest sound speed point must be at or below deepest bathymetry point.")
 
         # Store copies to avoid modifying caller-owned arrays
         self._z_ss = np.array(z_ss, copy=True)

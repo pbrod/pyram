@@ -66,9 +66,9 @@ def test_pyrammp():
             **pyram_kwargs,
         ).run()
 
-        ref_r.append(result["Ranges"])
-        ref_z.append(result["Depths"])
-        ref_tl.append(result["TL Grid"])
+        ref_r.append(result.ranges)
+        ref_z.append(result.depths)
+        ref_tl.append(result.loss_grid)
 
     freqs_rep = np.tile(freqs, nrep)
     num_runs = len(freqs_rep)
@@ -101,8 +101,8 @@ def test_pyrammp():
         proc_time = 0.0
 
         for result in pyram_mp.results:
-            results[result["ID"]] = result
-            proc_time += result["Proc Time"]
+            results[result.id] = result
+            proc_time += result.proc_time
 
         for n, result in enumerate(results):
             freq = runs[n][0]["freq"]
@@ -110,17 +110,17 @@ def test_pyrammp():
 
             np.testing.assert_array_equal(
                 ref_r[ref_idx],
-                result["Ranges"],
+                result.ranges,
             )
 
             np.testing.assert_array_equal(
                 ref_z[ref_idx],
-                result["Depths"],
+                result.depths,
             )
 
             np.testing.assert_allclose(
                 ref_tl[ref_idx],
-                result["TL Grid"],
+                result.loss_grid,
             )
 
         speed_fact = 100.0 * (proc_time / nproc) / elapsed_time
