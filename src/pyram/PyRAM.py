@@ -381,13 +381,7 @@ class PyRAM:
             )
         )
         self.attn = np.interp(z, zlyr, attnlyr, left=self._attn[0, self.sb_ind], right=attnf)
-        # old call
-        # for i in range(self.nz + 2):
-        #     self.ksqw[i] = (self.omega / self.cw[i])**2 - self.k0**2
-        #     self.ksqb[i] = ((self.omega / self.cb[i]) *
-        #                     (1 + 1j * self.eta * self.attn[i]))**2 - self.k0**2
-        #     self.alpw[i] = np.sqrt(self.cw[i] / self._c0)
-        #     self.alpb[i] = np.sqrt(self.rhob[i] * self.cb[i] / self._c0)
+
         self.ksqw = (self.omega / self.cw) ** 2 - self.k0**2
         self.ksqb = ((self.omega / self.cb) * (1 + 1j * self.eta * self.attn)) ** 2 - self.k0**2
         self.alpw = np.sqrt(self.cw / self._c0)
