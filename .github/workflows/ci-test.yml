@@ -46,8 +46,7 @@ jobs:
         run: pdm sync -dG test
 
       - name: Check formatting
-        run: pdm run format --check
-        continue-on-error: true
+        run: pdm run check-format
 
       - name: Lint
         run: pdm run check-style

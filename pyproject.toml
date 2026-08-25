@@ -108,6 +108,7 @@ lock-py314 = "pdm lock -L pdm.lock314 --python 3.14 --strategy no_direct_minimal
 lock-all = {composite = ["lock", "lock-py314"]}
 
 format = "ruff format ./src/"  # format code
+check-format = "ruff format --check ./src/"  # format code
 check-style = "ruff check ./src/"  # check code style
 check-types = "mypy ./src/"  # check types
 tests = {cmd = "pytest", env = {MPLBACKEND = "Agg"}}
