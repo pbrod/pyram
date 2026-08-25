@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pyram.PyRAM import PyRAM
+from pyram.PyRAM import PyRAM, munk_profile, arctic_profile
 
 
 def example1():
-    """Same testcase as used in test_pyram"""
+    """Plot long range transi\mission loss vs 15log(r). Same testcase as used in test_pyram"""
     pyram = PyRAM(
         freq=50,
         zs=50,
@@ -25,10 +25,12 @@ def example1():
         zmplt=500,
         c0=1600,
     )
-    pyram.run()
-    r = pyram.vr / 1000
-    plt.plot(r, -pyram.tll)
+    res = pyram.run()
 
+    print(res.proc_time)
+
+    r = res.ranges / 1000
+    plt.plot(r, -res.loss_line)
     plt.plot(r, -15 * np.log10(r * 1000))
     plt.xlabel("Range [km]")
     plt.ylabel("Tloss [dB re 1m]")
@@ -36,7 +38,7 @@ def example1():
 
 
 def example2():
-
+    """Transmission loss contour-plto for f=50Hz"""
     pyram2 = PyRAM(
         freq=50,
         zs=4,
@@ -56,17 +58,19 @@ def example2():
         zmplt=500,
         c0=1500,
     )
-    pyram2.run()
-    r = pyram2.vr
+    res = pyram2.run()
+    r = res.ranges
+    print(res.proc_time)
     if True:
         fig2, ax2 = plt.subplots(layout="constrained")
-        z = pyram2.vz
-        tlg = pyram2.tlg
+        z = res.depths
+        tlg = res.loss_grid
         CS3 = ax2.contourf(r, z, tlg, levels=list(range(0, 121, 15)))
         ax2.invert_yaxis()
         fig2.colorbar(CS3)
     else:
-        plt.plot(r, -pyram2.tll)
+        tll =  res.loss_line
+        plt.plot(r, -tll)
         plt.plot(r, -20 * np.log10(r))
         plt.xlabel("Range [m]")
         plt.ylabel("Tloss [dB re 1m]")
@@ -75,46 +79,7 @@ def example2():
 
 def example3():
     """
-    Attributes
-    ----------
-    freq: Frequency (Hz).
-    zs: Source depth (m).
-    zr: Receiver depth (m).
-    z_ss: Depths (m) for water sound speed values, NumPy 1D array.
-    rp_ss: Ranges (m) for water sound speed values, NumPy 1D array.
-    cw: Water sound speed values (m/s),
-        Numpy 2D array, dimensions z_ss.size by rp_ss.size.
-    z_sb: Depths for seabed parameter values, NumPy 1D array.
-    rp_sb: Ranges (m) for seabed parameter, NumPy 1D array.
-    cb: Seabed sound speed values (m/s),
-        NumPy 2D array, dimensions z_sb.size by rp_sb.size.
-    rhob: Seabed density values (g/cm3), same dimensions as cb
-    attn: Seabed attenuation values (dB/wavelength), same dimensions as cb
-    rbzb: Bathymetry (m), Numpy 2D array with columns of ranges and depths
-
-    kwargs...
-    ---------
-    np: Number of Pade terms. Defaults to _np_default.
-    c0: Reference sound speed (m/s). Defaults to mean of 1st profile.
-    dr: Calculation range step (m). Defaults to np times the wavelength.
-    dz: Calculation depth step (m). Defaults to _dzf*wavelength.
-    ndr: Number of range steps between outputs. Defaults to _ndr_default.
-    ndz: Number of depth steps between outputs. Defaults to _ndz_default.
-    zmplt: Maximum output depth (m). Defaults to maximum depth in rbzb.
-    rmax: Maximum calculation range (m). Defaults to max in rp_ss or rp_sb.
-    ns: Number of stability constraints. Defaults to _ns_default.
-    rs: Maximum range of the stability constraints (m). Defaults to rmax.
-    lyrw: Absorbing layer width (wavelengths). Defaults to _lyrw_default.
-    NB: original zmax input not needed due to lyrw.
-    id: Integer identifier for this instance.
-
-    _np_default = 8
-    _dzf = 0.1
-    _ndr_default = 1
-    _ndz_default = 1
-    _ns_default = 1
-    _lyrw_default = 20
-    _id_default = 0
+    Plot RAM vs Lloyd mirror transmisson loss for all frequencies from 10 to 1kHz
     """
 
     freqs = np.arange(10, 500, 5)
@@ -123,14 +88,16 @@ def example3():
     zs = 4.0
     zr = 45.0
     rh = 20.0
-    c0 = 1490.0
     dr = 1
     dz = 0.2
-    water_depth = 380
+    c0 = 1490.0
+    rs = 1
+    ns = 2
+    water_depth = 46
     for f in freqs:
-        npdefault = 8 if f < 50 else 4
-        # dr = min(npdefault*1500 /f,  rh /10)
-        dz = 100.0 / f
+        npdefault = 10 if f < 50 else 4
+        lambda0 = c0 / f
+        dz = lambda0 / 20
         pyram3 = PyRAM(
             freq=f,  # frequency
             zs=zs,  # Source depth (m)
@@ -157,28 +124,29 @@ def example3():
                     [2000.0, water_depth],
                 ]
             ),
-            rmax=500.0,
+            rmax=1500.0,
             dr=dr,
             dz=dz,
             zmplt=380.0,
             c0=c0,
             np=npdefault,
         )
-        pyram3.run()
-        i0 = np.argmin(np.abs(pyram3.vr - rh))
-        tl.append(-pyram3.tll[i0])
-        print(pyram3.vr[0], pyram3.vr[-1], pyram3.vz[0], pyram3.vz[-1], dr, dz, i0)
+        res = pyram3.run()
+        r = res.ranges
+        z = res.depths
+        i0 = np.argmin(np.abs(r - rh))
+        tl.append(-res.loss_line[i0])
+        print(r[0], r[-1], z[0], z[-1], dr, dz, i0)
 
     mu = 1
 
     r = np.hypot(rh, zr - zs)
     theta = np.abs(np.arctan2(zr, rh))
     f0 = c0 / (4 * zs * np.sin(theta))
+    llm = -20 * np.log10(r) + 10 * np.log10(1 + mu**2 - 2 * mu * np.cos(np.pi * freqs / f0))
     plt.semilogx(freqs, tl, label="Pyram")
     plt.semilogx(freqs, -20 * np.log10(r) * np.ones(len(freqs)), label="20log(r)")
-    plt.semilogx(
-        freqs, -20 * np.log10(r) + 10 * np.log10(1 + mu**2 - 2 * mu * np.cos(np.pi * freqs / f0)), label="LM"
-    )
+    plt.semilogx(freqs, llm, label="LM")
     plt.xlabel("Frequency [Hz]")
     plt.ylabel("Tloss [dB re 1m]")
     plt.legend()
@@ -186,5 +154,21 @@ def example3():
     plt.show()
 
 
+def example4():
+    """
+    Plot munk speed profile vs arctic speed profile
+    """
+
+    z = np.arange(200)
+
+    plt.plot(munk_profile(z), -z, label='Munk')
+    plt.plot(arctic_profile(z), -z, label='Arctic')
+
+    plt.xlabel('Sound speed [m/s]')
+    plt.ylabel('Depth [m]')
+    plt.legend()
+    plt.show()
+
+
 if __name__ == "__main__":
-    example3()
+    example4()
