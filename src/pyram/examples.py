@@ -1,28 +1,32 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyram.PyRAM import PYRAM
+from pyram.PyRAM import PyRAM
 
 
 def example1():
+    """Same testcase as used in test_pyram"""
     pyram = PyRAM(
         freq=50,
         zs=50,
         zr=50,
         z_ss=np.array([0, 100, 400]),
         rp_ss=np.array([0, 25000]),
-        cw=np.array([[1480, 1530], [1520, 1530], [1530, 1530]]),
+        cw=np.array([[1480, 1530],
+                     [1520, 1530],
+                    [1530, 1530]]),
         z_sb=np.array([0]),
         rp_sb=np.array([0]),
         cb=np.array([[1700]]),
         rhob=np.array([[1.5]]),
         attn=np.array([[0.5]]),
-        rbzb=np.array([[0, 200], [40000, 400]]),
-        # rmax=50000,
-        # dr=500,
-        # dz=2,
-        # zmplt=500,
-        # c0=1600,
+        rbzb=np.array([[0, 200],
+                       [40000, 400]]),
+        rmax=50000,
+        dr=500,
+        dz=2,
+        zmplt=500,
+        c0=1600,
     )
     pyram.run()
     r = pyram.vr / 1000
@@ -36,36 +40,39 @@ def example1():
 
 def example2():
 
-    pyram = PyRAM(
+    pyram2 = PyRAM(
         freq=50,
         zs=4,
         zr=45,
         z_ss=np.array([0, 100, 400]),
         rp_ss=np.array([0, 25000]),
-        cw=np.array([[1480, 1530], [1520, 1530], [1530, 1530]]),
+        cw=np.array([[1480, 1530],
+                     [1520, 1530],
+                     [1530, 1530]]),
         z_sb=np.array([0]),
         rp_sb=np.array([0]),
         cb=np.array([[1700]]),
         rhob=np.array([[1.5]]),
         attn=np.array([[0.5]]),
-        rbzb=np.array([[0, 200], [40000, 400]]),
+        rbzb=np.array([[0, 200],
+                       [40000, 400]]),
         rmax=500,
-        dr=5,
-        dz=2,
+        dr=10,
+        dz=0.2,
         zmplt=500,
-        c0=1600,
+        c0=1500,
     )
-    pyram.run()
-    r = pyram.vr
+    pyram2.run()
+    r = pyram2.vr
     if True:
         fig2, ax2 = plt.subplots(layout="constrained")
-        z = pyram.vz
-        tlg = pyram.tlg
-        CS3 = ax2.contourf(r, z, tlg)
+        z = pyram2.vz
+        tlg = pyram2.tlg
+        CS3 = ax2.contourf(r, z, tlg, levels=list(range(0, 121, 15)))
         ax2.invert_yaxis()
         fig2.colorbar(CS3)
     else:
-        plt.plot(r, -pyram.tll)
+        plt.plot(r, -pyram2.tll)
         plt.plot(r, -20 * np.log10(r))
         plt.xlabel("Range [m]")
         plt.ylabel("Tloss [dB re 1m]")
@@ -90,7 +97,7 @@ def example3():
     rhob: Seabed density values (g/cm3), same dimensions as cb
     attn: Seabed attenuation values (dB/wavelength), same dimensions as cb
     rbzb: Bathymetry (m), Numpy 2D array with columns of ranges and depths
-    ---------
+
     kwargs...
     ---------
     np: Number of Pade terms. Defaults to _np_default.
@@ -117,14 +124,20 @@ def example3():
     """
 
     freqs = np.arange(10, 500, 5)
+    freqs = np.logspace(1, 3, 50)
     tl = []
     zs = 4.0
     zr = 45.0
-    rh = 100.0
+    rh = 20.0
     c0 = 1490.0
+    dr = 1
+    dz = 0.2
+    water_depth = 380
     for f in freqs:
-        npdefault = 8 if f < 100 else 14
-        pyram = PyRAM(
+        npdefault = 8 if f < 50 else 4
+        # dr = min(npdefault*1500 /f,  rh /10)
+        dz = 100. / f
+        pyram3 = PyRAM(
             freq=f,  # frequency
             zs=zs,  # Source depth (m)
             zr=zr,  # Receiver depth (m).
@@ -146,20 +159,21 @@ def example3():
             attn=np.array([[0.5], [0.1]]),  # Seabed attenuation values size z_sb.size X rp_sb.size
             rbzb=np.array(
                 [
-                    [0.0, 380.0],  # Bathymetry (m), Numpy 2D array with columns of ranges and depths
-                    [2000.0, 380.0],
+                    [0.0, water_depth],  # Bathymetry (m), Numpy 2D array with columns of ranges and depths
+                    [2000.0, water_depth],
                 ]
             ),
             rmax=500.0,
-            dr=rh,
-            # dz=dz,
+            dr=dr,
+            dz=dz,
             zmplt=380.0,
             c0=c0,
             np=npdefault,
         )
-        pyram.run()
-        tl.append(-pyram.tll[0])
-        print(pyram.vr[0], pyram.vr[-1], pyram.vz[0], pyram.vz[-1])
+        pyram3.run()
+        i0 = np.argmin(np.abs(pyram3.vr-rh))
+        tl.append(-pyram3.tll[i0])
+        print(pyram3.vr[0], pyram3.vr[-1], pyram3.vz[0], pyram3.vz[-1], dr, dz, i0)
 
     mu = 1
 
@@ -174,6 +188,7 @@ def example3():
     plt.xlabel("Frequency [Hz]")
     plt.ylabel("Tloss [dB re 1m]")
     plt.legend()
+    plt.title(f"Water depth_ {water_depth}")
     plt.show()
 
 
