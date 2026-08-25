@@ -47,8 +47,8 @@ class PyRAMResults(NamedTuple):
     """
     Results returned by PyRAM.run().
 
-    Attributes
-    ----------
+    Fields
+    ------
     ranges : ndarray
         Calculation ranges [m].
     depths : ndarray

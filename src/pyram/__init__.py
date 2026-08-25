@@ -1,3 +1,12 @@
+from .PyRAM import (
+    PyRAM,
+    PyRAMResults,
+    arctic_profile,
+    munk_profile,
+)
+
+from .PyRAMmp import PyRAMmp
+
 __all__ = (
     "matrc",
     "outpt",

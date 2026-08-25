@@ -159,9 +159,10 @@ def example4():
 
     z = np.arange(2000)
 
-    plt.plot(munk_profile(z), -z, label="Munk")
-    plt.plot(arctic_profile(z), -z, label="Arctic")
+    plt.plot(munk_profile(z), z, label="Munk")
+    plt.plot(arctic_profile(z), z, label="Arctic")
 
+    plt.gca().invert_yaxis()
     plt.xlabel("Sound speed [m/s]")
     plt.ylabel("Depth [m]")
     plt.legend()
