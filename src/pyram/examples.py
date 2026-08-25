@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pyram.PyRAM import PyRAM, munk_profile, arctic_profile
+from pyram.PyRAM import PyRAM, arctic_profile, munk_profile
 
 
 def example1():
-    """Plot long range transi\mission loss vs 15log(r). Same testcase as used in test_pyram"""
+    """Plot long range transimission loss vs 15log(r). Same testcase as used in test_pyram"""
     pyram = PyRAM(
         freq=50,
         zs=50,
@@ -69,7 +69,7 @@ def example2():
         ax2.invert_yaxis()
         fig2.colorbar(CS3)
     else:
-        tll =  res.loss_line
+        tll = res.loss_line
         plt.plot(r, -tll)
         plt.plot(r, -20 * np.log10(r))
         plt.xlabel("Range [m]")
@@ -91,8 +91,6 @@ def example3():
     dr = 1
     dz = 0.2
     c0 = 1490.0
-    rs = 1
-    ns = 2
     water_depth = 46
     for f in freqs:
         npdefault = 10 if f < 50 else 4
@@ -150,7 +148,7 @@ def example3():
     plt.xlabel("Frequency [Hz]")
     plt.ylabel("Tloss [dB re 1m]")
     plt.legend()
-    plt.title(f"Water depth_ {water_depth}")
+    plt.title(f"Water depth {water_depth} m")
     plt.show()
 
 
@@ -159,16 +157,19 @@ def example4():
     Plot munk speed profile vs arctic speed profile
     """
 
-    z = np.arange(200)
+    z = np.arange(2000)
 
-    plt.plot(munk_profile(z), -z, label='Munk')
-    plt.plot(arctic_profile(z), -z, label='Arctic')
+    plt.plot(munk_profile(z), -z, label="Munk")
+    plt.plot(arctic_profile(z), -z, label="Arctic")
 
-    plt.xlabel('Sound speed [m/s]')
-    plt.ylabel('Depth [m]')
+    plt.xlabel("Sound speed [m/s]")
+    plt.ylabel("Depth [m]")
     plt.legend()
     plt.show()
 
 
 if __name__ == "__main__":
+    example1()
+    example2()
+    example3()
     example4()
