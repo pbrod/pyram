@@ -25,11 +25,13 @@ PyRAM also provides various conveniences, e.g. automatic calculation of range
 and depth steps (though these can be overridden using keyword arguments).
 """
 
-import numpy as np
 from time import process_time
+
+import numpy as np
+
 from pyram.matrc import matrc
-from pyram.solve import solve
 from pyram.outpt import outpt
+from pyram.solve import solve
 
 
 class PyRAM:
@@ -67,6 +69,7 @@ class PyRAM:
     NB: original zmax input not needed due to lyrw.
     id: Integer identifier for this instance.
     """
+
     _np_default = 8
     _dzf = 0.1
     _ndr_default = 1
@@ -75,14 +78,12 @@ class PyRAM:
     _lyrw_default = 20
     _id_default = 0
 
-    def __init__(self, freq, zs, zr, z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob,
-                 attn, rbzb, **kwargs):
+    def __init__(self, freq, zs, zr, z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb, **kwargs):
         self._freq, self._zs, self._zr = freq, zs, zr
         self.check_inputs(z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb)
         self.get_params(**kwargs)
 
     def run(self):
-
         """
         Run the model. Sets the following instance variables:
         vr: Calculation ranges (m), NumPy 1D array.
@@ -101,30 +102,53 @@ class PyRAM:
         nr = int(np.round(self._rmax / self._dr)) - 1
 
         for rn in range(nr):
-
             self.updat()
 
-            solve(self.u, self.v, self.s1, self.s2, self.s3,
-                  self.r1, self.r2, self.r3, self.iz, self.nz, self._np)
+            solve(
+                self.u,
+                self.v,
+                self.s1,
+                self.s2,
+                self.s3,
+                self.r1,
+                self.r2,
+                self.r3,
+                self.iz,
+                self.nz,
+                self._np,
+            )
 
             self.r = (rn + 2) * self._dr
 
-            self.mdr, self.tlc = \
-                (outpt(self.r, self.mdr, self._ndr, self._ndz, self.tlc, self.f3,
-                       self.u, self.dir, self.ir, self.tll, self.tlg, self.cpl, self.cpg)[:])
+            self.mdr, self.tlc = outpt(
+                self.r,
+                self.mdr,
+                self._ndr,
+                self._ndz,
+                self.tlc,
+                self.f3,
+                self.u,
+                self.dir,
+                self.ir,
+                self.tll,
+                self.tlg,
+                self.cpl,
+                self.cpg,
+            )[:]
 
         self.proc_time = process_time() - t0
 
-        results = {'ID': self._id,
-                   'Proc Time': self.proc_time,
-                   'Ranges': self.vr,
-                   'Depths': self.vz,
-                   'TL Grid': self.tlg,
-
-                   'TL Line': self.tll,
-                   'CP Grid': self.cpg,
-                   'CP Line': self.cpl,
-                   'c0': self._c0}
+        results = {
+            "ID": self._id,
+            "Proc Time": self.proc_time,
+            "Ranges": self.vr,
+            "Depths": self.vz,
+            "TL Grid": self.tlg,
+            "TL Line": self.tll,
+            "CP Grid": self.cpg,
+            "CP Line": self.cpl,
+            "c0": self._c0,
+        }
 
         return results
 
@@ -138,10 +162,10 @@ class PyRAM:
         # Source and receiver depths
         if not z_ss[0] <= self._zs <= z_ss[-1]:
             self._status_ok = False
-            raise ValueError('Source depth outside sound speed depths')
+            raise ValueError("Source depth outside sound speed depths")
         if not z_ss[0] <= self._zr <= z_ss[-1]:
             self._status_ok = False
-            raise ValueError('Receiver depth outside sound speed depths')
+            raise ValueError("Receiver depth outside sound speed depths")
         if self._status_ok:
             self._z_ss = z_ss
 
@@ -152,7 +176,7 @@ class PyRAM:
         if (cw_dims[0] == num_depths) and (cw_dims[1] == num_ranges):
             self._rp_ss, self._cw = rp_ss, cw
         else:
-            raise ValueError('Dimensions of z_ss, rp_ss and cw must be consistent.')
+            raise ValueError("Dimensions of z_ss, rp_ss and cw must be consistent.")
 
         # Seabed profiles
         self._z_sb = z_sb
@@ -163,17 +187,15 @@ class PyRAM:
             if (prof_dims[0] != num_depths) or (prof_dims[1] != num_ranges):
                 self._status_ok = False
         if self._status_ok:
-            self._rp_sb, self._cb, self._rhob, self._attn = \
-                rp_sb, cb, rhob, attn
+            self._rp_sb, self._cb, self._rhob, self._attn = rp_sb, cb, rhob, attn
         else:
-            raise ValueError('Dimensions of z_sb, rp_sb, cb, rhob and attn must be consistent.')
+            raise ValueError("Dimensions of z_sb, rp_sb, cb, rhob and attn must be consistent.")
 
         if rbzb[:, 1].max() <= self._z_ss[-1]:
             self._rbzb = rbzb
         else:
             self._status_ok = False
-            raise ValueError('Deepest sound speed point must be at or '
-                             'below deepest bathymetry point.')
+            raise ValueError("Deepest sound speed point must be at or below deepest bathymetry point.")
 
         # Set flags for range-dependence (water SSP, seabed profile, bathymetry)
         self.rd_ss = True if self._rp_ss.size > 1 else False
@@ -181,51 +203,45 @@ class PyRAM:
         self.rd_bt = True if self._rbzb.shape[0] > 1 else False
 
     def get_params(self, **kwargs):
-
         """
         Get the parameters from the keyword arguments
         """
 
-        self._np = kwargs.get('np', PyRAM._np_default)
+        self._np = kwargs.get("np", PyRAM._np_default)
 
-        self._c0 = kwargs.get('c0', np.mean(self._cw[:, 0])
-                              if len(self._cw.shape) > 1 else
-                              np.mean(self._cw))
+        self._c0 = kwargs.get("c0", np.mean(self._cw[:, 0]) if len(self._cw.shape) > 1 else np.mean(self._cw))
 
         self._lambda = self._c0 / self._freq
 
         # dr and dz are based on 1500m/s to get sensible output steps
-        self._dr = kwargs.get('dr', self._np * 1500 / self._freq)
-        self._dz = kwargs.get('dz', PyRAM._dzf * 1500 / self._freq)
+        self._dr = kwargs.get("dr", self._np * 1500 / self._freq)
+        self._dz = kwargs.get("dz", PyRAM._dzf * 1500 / self._freq)
 
-        self._ndr = kwargs.get('ndr', PyRAM._ndr_default)
-        self._ndz = kwargs.get('ndz', PyRAM._ndz_default)
+        self._ndr = kwargs.get("ndr", PyRAM._ndr_default)
+        self._ndz = kwargs.get("ndz", PyRAM._ndz_default)
 
-        self._zmplt = kwargs.get('zmplt', self._rbzb[:, 1].max())
+        self._zmplt = kwargs.get("zmplt", self._rbzb[:, 1].max())
 
-        self._rmax = kwargs.get('rmax', np.max([self._rp_ss.max(),
-                                                self._rp_sb.max(),
-                                                self._rbzb[:, 0].max()]))
+        self._rmax = kwargs.get(
+            "rmax", np.max([self._rp_ss.max(), self._rp_sb.max(), self._rbzb[:, 0].max()])
+        )
 
-        self._ns = kwargs.get('ns', PyRAM._ns_default)
-        self._rs = kwargs.get('rs', self._rmax + self._dr)
+        self._ns = kwargs.get("ns", PyRAM._ns_default)
+        self._rs = kwargs.get("rs", self._rmax + self._dr)
 
-        self._lyrw = kwargs.get('lyrw', PyRAM._lyrw_default)
+        self._lyrw = kwargs.get("lyrw", PyRAM._lyrw_default)
 
-        self._id = kwargs.get('id', PyRAM._id_default)
+        self._id = kwargs.get("id", PyRAM._id_default)
 
         self.proc_time = None
 
     def setup(self):
-
         """
         Initialise the parameters, acoustic field, and matrices
         """
 
         if self._rbzb[-1, 0] < self._rmax:
-            self._rbzb = np.append(self._rbzb,
-                                   np.array([[self._rmax, self._rbzb[-1, 1]]]),
-                                   axis=0)
+            self._rbzb = np.append(self._rbzb, np.array([[self._rmax, self._rbzb[-1, 1]]]), axis=0)
 
         self.eta = 1 / (40 * np.pi * np.log10(np.exp(1)))
         self.ib = 0  # Bathymetry pair index
@@ -281,19 +297,51 @@ class PyRAM:
         # The initial profiles and starting field
         self.profl()
         self.selfs()
-        self.mdr, self.tlc = \
-            (outpt(self.r, self.mdr, self._ndr, self._ndz, self.tlc, self.f3,
-                   self.u, self.dir, self.ir, self.tll, self.tlg, self.cpl, self.cpg)[:])
+        self.mdr, self.tlc = outpt(
+            self.r,
+            self.mdr,
+            self._ndr,
+            self._ndz,
+            self.tlc,
+            self.f3,
+            self.u,
+            self.dir,
+            self.ir,
+            self.tll,
+            self.tlg,
+            self.cpl,
+            self.cpg,
+        )[:]
 
         # The propagation matrices
         self.epade()
-        matrc(self.k0, self._dz, self.iz, self.iz, self.nz, self._np,
-              self.f1, self.f2, self.f3, self.ksq, self.alpw, self.alpb,
-              self.ksqw, self.ksqb, self.rhob, self.r1, self.r2, self.r3,
-              self.s1, self.s2, self.s3, self.pd1, self.pd2)
+        matrc(
+            self.k0,
+            self._dz,
+            self.iz,
+            self.iz,
+            self.nz,
+            self._np,
+            self.f1,
+            self.f2,
+            self.f3,
+            self.ksq,
+            self.alpw,
+            self.alpb,
+            self.ksqw,
+            self.ksqb,
+            self.rhob,
+            self.r1,
+            self.r2,
+            self.r3,
+            self.s1,
+            self.s2,
+            self.s3,
+            self.pd1,
+            self.pd2,
+        )
 
     def profl(self):
-
         """
         Set up the profiles
         """
@@ -301,23 +349,38 @@ class PyRAM:
         attnf = 10  # 10dB/wavelength at floor
 
         z = np.linspace(0, self._zmax, self.nz + 2)
-        self.cw = np.interp(z, self._z_ss, self._cw[:, self.ss_ind],
-                            left=self._cw[0, self.ss_ind],
-                            right=self._cw[-1, self.ss_ind])
-        self.cb = np.interp(z, self._z_sb, self._cb[:, self.sb_ind],
-                            left=self._cb[0, self.sb_ind],
-                            right=self._cb[-1, self.sb_ind])
-        self.rhob = np.interp(z, self._z_sb, self._rhob[:, self.sb_ind],
-                              left=self._rhob[0, self.sb_ind],
-                              right=self._rhob[-1, self.sb_ind])
-        attnlyr = np.concatenate((self._attn[:, self.sb_ind],
-                                  [self._attn[-1, self.sb_ind], attnf]))
-        zlyr = np.concatenate((self._z_sb,
-                               [self._z_sb[-1] + 0.75 * self._lyrw * self._lambda,
-                                   self._z_sb[-1] + self._lyrw * self._lambda]))
-        self.attn = np.interp(z, zlyr, attnlyr,
-                              left=self._attn[0, self.sb_ind],
-                              right=attnf)
+        self.cw = np.interp(
+            z,
+            self._z_ss,
+            self._cw[:, self.ss_ind],
+            left=self._cw[0, self.ss_ind],
+            right=self._cw[-1, self.ss_ind],
+        )
+        self.cb = np.interp(
+            z,
+            self._z_sb,
+            self._cb[:, self.sb_ind],
+            left=self._cb[0, self.sb_ind],
+            right=self._cb[-1, self.sb_ind],
+        )
+        self.rhob = np.interp(
+            z,
+            self._z_sb,
+            self._rhob[:, self.sb_ind],
+            left=self._rhob[0, self.sb_ind],
+            right=self._rhob[-1, self.sb_ind],
+        )
+        attnlyr = np.concatenate((self._attn[:, self.sb_ind], [self._attn[-1, self.sb_ind], attnf]))
+        zlyr = np.concatenate(
+            (
+                self._z_sb,
+                [
+                    self._z_sb[-1] + 0.75 * self._lyrw * self._lambda,
+                    self._z_sb[-1] + self._lyrw * self._lambda,
+                ],
+            )
+        )
+        self.attn = np.interp(z, zlyr, attnlyr, left=self._attn[0, self.sb_ind], right=attnf)
         # old call
         # for i in range(self.nz + 2):
         #     self.ksqw[i] = (self.omega / self.cw[i])**2 - self.k0**2
@@ -325,14 +388,12 @@ class PyRAM:
         #                     (1 + 1j * self.eta * self.attn[i]))**2 - self.k0**2
         #     self.alpw[i] = np.sqrt(self.cw[i] / self._c0)
         #     self.alpb[i] = np.sqrt(self.rhob[i] * self.cb[i] / self._c0)
-        self.ksqw = (self.omega / self.cw)**2 - self.k0**2
-        self.ksqb = ((self.omega / self.cb) *
-                    (1 + 1j * self.eta * self.attn))**2 - self.k0**2
+        self.ksqw = (self.omega / self.cw) ** 2 - self.k0**2
+        self.ksqb = ((self.omega / self.cb) * (1 + 1j * self.eta * self.attn)) ** 2 - self.k0**2
         self.alpw = np.sqrt(self.cw / self._c0)
         self.alpb = np.sqrt(self.rhob * self.cb / self._c0)
 
     def updat(self):
-
         """
         Matrix updates
         """
@@ -343,19 +404,38 @@ class PyRAM:
             while (self.bt_ind < npt - 1) and (self.r >= self._rbzb[self.bt_ind + 1, 0]):
                 self.bt_ind += 1
             jz = self.iz
-            z = self._rbzb[self.bt_ind, 1] + \
-                (self.r + 0.5 * self._dr - self._rbzb[self.bt_ind, 0]) * \
-                (self._rbzb[self.bt_ind + 1, 1] - self._rbzb[self.bt_ind, 1]) / \
-                (self._rbzb[self.bt_ind + 1, 0] - self._rbzb[self.bt_ind, 0])
+            z = self._rbzb[self.bt_ind, 1] + (self.r + 0.5 * self._dr - self._rbzb[self.bt_ind, 0]) * (
+                self._rbzb[self.bt_ind + 1, 1] - self._rbzb[self.bt_ind, 1]
+            ) / (self._rbzb[self.bt_ind + 1, 0] - self._rbzb[self.bt_ind, 0])
             self.iz = int(np.floor(z / self._dz))  # First index below seabed
             self.iz = max(1, self.iz)
             self.iz = min(self.nz - 1, self.iz)
             if self.iz != jz:
-                matrc(self.k0, self._dz, self.iz, jz, self.nz, self._np,
-                      self.f1, self.f2, self.f3, self.ksq, self.alpw,
-                      self.alpb, self.ksqw, self.ksqb, self.rhob, self.r1,
-                      self.r2, self.r3, self.s1, self.s2, self.s3, self.pd1,
-                      self.pd2)
+                matrc(
+                    self.k0,
+                    self._dz,
+                    self.iz,
+                    jz,
+                    self.nz,
+                    self._np,
+                    self.f1,
+                    self.f2,
+                    self.f3,
+                    self.ksq,
+                    self.alpw,
+                    self.alpb,
+                    self.ksqw,
+                    self.ksqb,
+                    self.rhob,
+                    self.r1,
+                    self.r2,
+                    self.r3,
+                    self.s1,
+                    self.s2,
+                    self.s3,
+                    self.pd1,
+                    self.pd2,
+                )
 
         # Varying sound speed profile
         if self.rd_ss:
@@ -365,11 +445,31 @@ class PyRAM:
                 self.ss_ind += 1
             if self.ss_ind != ss_ind_o:
                 self.profl()
-                matrc(self.k0, self._dz, self.iz, self.iz, self.nz, self._np,
-                      self.f1, self.f2, self.f3, self.ksq, self.alpw,
-                      self.alpb, self.ksqw, self.ksqb, self.rhob, self.r1,
-                      self.r2, self.r3, self.s1, self.s2, self.s3, self.pd1,
-                      self.pd2)
+                matrc(
+                    self.k0,
+                    self._dz,
+                    self.iz,
+                    self.iz,
+                    self.nz,
+                    self._np,
+                    self.f1,
+                    self.f2,
+                    self.f3,
+                    self.ksq,
+                    self.alpw,
+                    self.alpb,
+                    self.ksqw,
+                    self.ksqb,
+                    self.rhob,
+                    self.r1,
+                    self.r2,
+                    self.r3,
+                    self.s1,
+                    self.s2,
+                    self.s3,
+                    self.pd1,
+                    self.pd2,
+                )
 
         # Varying seabed profile
         if self.rd_sb:
@@ -379,24 +479,64 @@ class PyRAM:
                 self.sb_ind += 1
             if self.sb_ind != sb_ind_o:
                 self.profl()
-                matrc(self.k0, self._dz, self.iz, self.iz, self.nz, self._np,
-                      self.f1, self.f2, self.f3, self.ksq, self.alpw,
-                      self.alpb, self.ksqw, self.ksqb, self.rhob, self.r1,
-                      self.r2, self.r3, self.s1, self.s2, self.s3, self.pd1,
-                      self.pd2)
+                matrc(
+                    self.k0,
+                    self._dz,
+                    self.iz,
+                    self.iz,
+                    self.nz,
+                    self._np,
+                    self.f1,
+                    self.f2,
+                    self.f3,
+                    self.ksq,
+                    self.alpw,
+                    self.alpb,
+                    self.ksqw,
+                    self.ksqb,
+                    self.rhob,
+                    self.r1,
+                    self.r2,
+                    self.r3,
+                    self.s1,
+                    self.s2,
+                    self.s3,
+                    self.pd1,
+                    self.pd2,
+                )
 
         # Turn off the stability constraints
         if self.r >= self._rs:
             self._ns = 0
             self._rs = self._rmax + self._dr
             self.epade()
-            matrc(self.k0, self._dz, self.iz, self.iz, self.nz, self._np,
-                  self.f1, self.f2, self.f3, self.ksq, self.alpw, self.alpb,
-                  self.ksqw, self.ksqb, self.rhob, self.r1, self.r2, self.r3,
-                  self.s1, self.s2, self.s3, self.pd1, self.pd2)
+            matrc(
+                self.k0,
+                self._dz,
+                self.iz,
+                self.iz,
+                self.nz,
+                self._np,
+                self.f1,
+                self.f2,
+                self.f3,
+                self.ksq,
+                self.alpw,
+                self.alpb,
+                self.ksqw,
+                self.ksqb,
+                self.rhob,
+                self.r1,
+                self.r2,
+                self.r3,
+                self.s1,
+                self.s2,
+                self.s3,
+                self.pd1,
+                self.pd2,
+            )
 
     def selfs(self):
-
         """
         The self-starter
         """
@@ -407,36 +547,75 @@ class PyRAM:
         _is = int(np.floor(si))  # Source depth index
         dis = si - _is  # Offset
 
-        self.u[_is] = (1 - dis) * np.sqrt(2 * np.pi / self.k0) / \
-            (self._dz * self.alpw[_is])
-        self.u[_is + 1] = dis * np.sqrt(2 * np.pi / self.k0) / \
-            (self._dz * self.alpw[_is])
+        self.u[_is] = (1 - dis) * np.sqrt(2 * np.pi / self.k0) / (self._dz * self.alpw[_is])
+        self.u[_is + 1] = dis * np.sqrt(2 * np.pi / self.k0) / (self._dz * self.alpw[_is])
 
         # Divide the delta function by (1-X)**2 to get a smooth rhs
 
         self.pd1[0] = 0
         self.pd2[0] = -1
 
-        matrc(self.k0, self._dz, self.iz, self.iz, self.nz, 1,
-              self.f1, self.f2, self.f3, self.ksq, self.alpw, self.alpb,
-              self.ksqw, self.ksqb, self.rhob, self.r1, self.r2, self.r3,
-              self.s1, self.s2, self.s3, self.pd1, self.pd2)
+        matrc(
+            self.k0,
+            self._dz,
+            self.iz,
+            self.iz,
+            self.nz,
+            1,
+            self.f1,
+            self.f2,
+            self.f3,
+            self.ksq,
+            self.alpw,
+            self.alpb,
+            self.ksqw,
+            self.ksqb,
+            self.rhob,
+            self.r1,
+            self.r2,
+            self.r3,
+            self.s1,
+            self.s2,
+            self.s3,
+            self.pd1,
+            self.pd2,
+        )
         for _ in range(2):
-            solve(self.u, self.v, self.s1, self.s2, self.s3,
-                  self.r1, self.r2, self.r3, self.iz, self.nz, 1)
+            solve(self.u, self.v, self.s1, self.s2, self.s3, self.r1, self.r2, self.r3, self.iz, self.nz, 1)
 
         # Apply the operator (1-X)**2*(1+X)**(-1/4)*exp(ci*k0*r*sqrt(1+X))
 
         self.epade(ip=2)
-        matrc(self.k0, self._dz, self.iz, self.iz, self.nz, self._np,
-              self.f1, self.f2, self.f3, self.ksq, self.alpw, self.alpb,
-              self.ksqw, self.ksqb, self.rhob, self.r1, self.r2, self.r3,
-              self.s1, self.s2, self.s3, self.pd1, self.pd2)
-        solve(self.u, self.v, self.s1, self.s2, self.s3,
-              self.r1, self.r2, self.r3, self.iz, self.nz, self._np)
+        matrc(
+            self.k0,
+            self._dz,
+            self.iz,
+            self.iz,
+            self.nz,
+            self._np,
+            self.f1,
+            self.f2,
+            self.f3,
+            self.ksq,
+            self.alpw,
+            self.alpb,
+            self.ksqw,
+            self.ksqb,
+            self.rhob,
+            self.r1,
+            self.r2,
+            self.r3,
+            self.s1,
+            self.s2,
+            self.s3,
+            self.pd1,
+            self.pd2,
+        )
+        solve(
+            self.u, self.v, self.s1, self.s2, self.s3, self.r1, self.r2, self.r3, self.iz, self.nz, self._np
+        )
 
     def epade(self, ip=1):
-
         """
         The coefficients of the rational approximation
         """
@@ -471,8 +650,7 @@ class PyRAM:
                 _bin[i, j] = _bin[i - 1, j - 1] + _bin[i - 1, j]
 
         # The accuracy constraints
-        dg, dh1, dh2, dh3 = \
-            self.deriv(n, sig, alp, dg, dh1, dh2, dh3, _bin, nu)
+        dg, dh1, dh2, dh3 = self.deriv(n, sig, alp, dg, dh1, dh2, dh3, _bin, nu)
         for i in range(n):
             b[i] = dg[i + 1]
         for i in range(n):
@@ -488,14 +666,14 @@ class PyRAM:
             z1 = -3 + 0j
             b[n - 1] = -1
             for j in range(self._np):
-                a[n - 1, 2 * j] = z1**(j + 1)
+                a[n - 1, 2 * j] = z1 ** (j + 1)
                 a[n - 1, 2 * j + 1] = 0
 
         if self._ns >= 2:
             z1 = -1.5 + 0j
             b[n - 2] = -1
             for j in range(self._np):
-                a[n - 2, 2 * j] = z1**(j + 1)
+                a[n - 2, 2 * j] = z1 ** (j + 1)
                 a[n - 2, 2 * j + 1] = 0
 
         a, b = self.gauss(n, a, b, self.pivot)
@@ -516,7 +694,6 @@ class PyRAM:
 
     @staticmethod
     def deriv(n, sig, alp, dg, dh1, dh2, dh3, _bin, nu):
-
         """
         The derivatives of the operator function at x=0
         """
@@ -546,7 +723,6 @@ class PyRAM:
 
     @staticmethod
     def gauss(n, a, b, pivot):
-
         """
         Gaussian elimination
         """
@@ -574,7 +750,6 @@ class PyRAM:
 
     @staticmethod
     def pivot(n, i, a, b):
-
         """
         Rows are interchanged for stability
         """
@@ -596,7 +771,6 @@ class PyRAM:
 
     @staticmethod
     def fndrt(a, n, z, guerre):
-
         """
         The root finding subroutine
         """
@@ -621,14 +795,13 @@ class PyRAM:
                 for i in range(k + 1):
                     a[i] = a[i + 1]
 
-        z[1] = 0.5 * (-a[1] + np.sqrt(a[1]**2 - 4 * a[0] * a[2])) / a[2]
-        z[0] = 0.5 * (-a[1] - np.sqrt(a[1]**2 - 4 * a[0] * a[2])) / a[2]
+        z[1] = 0.5 * (-a[1] + np.sqrt(a[1] ** 2 - 4 * a[0] * a[2])) / a[2]
+        z[0] = 0.5 * (-a[1] - np.sqrt(a[1] ** 2 - 4 * a[0] * a[2])) / a[2]
 
         return a, z
 
     @staticmethod
     def guerre(a, n, z, err, nter):
-
         """
         This subroutine finds a root of a polynomial of degree n > 2 by Laguerre's method
         """
@@ -684,182 +857,6 @@ class PyRAM:
             z += dz
 
             if _iter == 100:
-                raise ValueError('Laguerre method not converging. '
-                                 'Try a different combination of DR and NP.')
+                raise ValueError("Laguerre method not converging. Try a different combination of DR and NP.")
 
         return a, z, err
-
-
-def example1():
-    import matplotlib.pyplot as plt
-    pyram = PyRAM(freq=50,
-                  zs=50,
-                  zr=50,
-                  z_ss=np.array([0, 100, 400]),
-                  rp_ss=np.array([0, 25000]),
-                  cw=np.array([[1480, 1530],
-                               [1520, 1530],
-                               [1530, 1530]]),
-                  z_sb=np.array([0]),
-                  rp_sb=np.array([0]),
-                  cb=np.array([[1700]]),
-                  rhob=np.array([[1.5]]),
-                  attn=np.array([[0.5]]),
-                  rbzb=np.array([[0, 200],
-                                 [40000, 400]]),
-                  #rmax=50000,
-                  #dr=500,
-                  #dz=2,
-                  #zmplt=500,
-                  #c0=1600,
-                  )
-    pyram.run()
-    r = pyram.vr/1000
-    plt.plot(r, -pyram.tll)
-
-    plt.plot(r, -15*np.log10(r*1000))
-    plt.xlabel('Range [km]')
-    plt.ylabel('Tloss [dB re 1m]')
-    plt.show()
-
-
-def example2():
-    import matplotlib.pyplot as plt
-    pyram = PyRAM(freq=50,
-                  zs=4,
-                  zr=45,
-                  z_ss=np.array([0, 100, 400]),
-                  rp_ss=np.array([0, 25000]),
-                  cw=np.array([[1480, 1530],
-                               [1520, 1530],
-                               [1530, 1530]]),
-                  z_sb=np.array([0]),
-                  rp_sb=np.array([0]),
-                  cb=np.array([[1700]]),
-                  rhob=np.array([[1.5]]),
-                  attn=np.array([[0.5]]),
-                  rbzb=np.array([[0, 200],
-                                 [40000, 400]]),
-                  rmax=500,
-                  dr=5,
-                  dz=2,
-                  zmplt=500,
-                  c0=1600,
-                  )
-    pyram.run()
-    r = pyram.vr
-    if True:
-        fig2, ax2 = plt.subplots(layout='constrained')
-        z = pyram.vz
-        tlg = pyram.tlg
-        CS3 = ax2.contourf(r,z, tlg)
-        ax2.invert_yaxis()
-        fig2.colorbar(CS3)
-    else:
-        plt.plot(r, -pyram.tll)
-        plt.plot(r, -20*np.log10(r))
-        plt.xlabel('Range [m]')
-        plt.ylabel('Tloss [dB re 1m]')
-    plt.show()
-
-
-def example3():
-    """
-    Attributes
-    ----------
-    freq: Frequency (Hz).
-    zs: Source depth (m).
-    zr: Receiver depth (m).
-    z_ss: Depths (m) for water sound speed values, NumPy 1D array.
-    rp_ss: Ranges (m) for water sound speed values, NumPy 1D array.
-    cw: Water sound speed values (m/s),
-        Numpy 2D array, dimensions z_ss.size by rp_ss.size.
-    z_sb: Depths for seabed parameter values, NumPy 1D array.
-    rp_sb: Ranges (m) for seabed parameter, NumPy 1D array.
-    cb: Seabed sound speed values (m/s),
-        NumPy 2D array, dimensions z_sb.size by rp_sb.size.
-    rhob: Seabed density values (g/cm3), same dimensions as cb
-    attn: Seabed attenuation values (dB/wavelength), same dimensions as cb
-    rbzb: Bathymetry (m), Numpy 2D array with columns of ranges and depths
-    ---------
-    kwargs...
-    ---------
-    np: Number of Pade terms. Defaults to _np_default.
-    c0: Reference sound speed (m/s). Defaults to mean of 1st profile.
-    dr: Calculation range step (m). Defaults to np times the wavelength.
-    dz: Calculation depth step (m). Defaults to _dzf*wavelength.
-    ndr: Number of range steps between outputs. Defaults to _ndr_default.
-    ndz: Number of depth steps between outputs. Defaults to _ndz_default.
-    zmplt: Maximum output depth (m). Defaults to maximum depth in rbzb.
-    rmax: Maximum calculation range (m). Defaults to max in rp_ss or rp_sb.
-    ns: Number of stability constraints. Defaults to _ns_default.
-    rs: Maximum range of the stability constraints (m). Defaults to rmax.
-    lyrw: Absorbing layer width (wavelengths). Defaults to _lyrw_default.
-    NB: original zmax input not needed due to lyrw.
-    id: Integer identifier for this instance.
-
-    _np_default = 8
-    _dzf = 0.1
-    _ndr_default = 1
-    _ndz_default = 1
-    _ns_default = 1
-    _lyrw_default = 20
-    _id_default = 0
-    """
-    import matplotlib.pyplot as plt
-    freqs = np.arange(10, 500, 5)
-    tl = []
-    zs = 4.0
-    zr = 45.0
-    rh = 100.0
-    dz = 1.0
-    c0 = 1490.0
-    for f in freqs:
-        npdefault = 8 if f < 100 else 14
-        pyram = PyRAM(freq=f,  # frequency
-                      zs=zs,   # Source depth (m)
-                      zr=zr,   # Receiver depth (m).
-                      z_ss=np.array([0.0, 2.2, 4.0, 6.3, 1000.]),  # depths (m) for water sound speed values
-                      rp_ss=np.array([0.0]),      # ranges (m) for water sound speed values
-                      cw=np.array([[1466.],      # Water sound speed values size z_ss.size X rp_ss
-                                   [1486.],
-                                   [1490.],
-                                   [1500.],
-                                   [1500.]]),
-                      z_sb=np.array([0., 20.0]),   # Depths for seabed parameter values
-                      rp_sb=np.array([0.0]),      # Ranges for seabed parameter values
-                      cb=np.array([[1700.0],
-                                   [5200.0]]),    # Seabed sound speed values size z_sb.size X rp_sb
-                      rhob=np.array([[1.6],
-                                     [2.6]]),   # Seabed density values size z_sb.size X rp_sb.size
-                      attn=np.array([[0.5],
-                                     [0.1]]),   # Seabed attenuation values size z_sb.size X rp_sb.size
-                      rbzb=np.array([[0., 380.],  # Bathymetry (m), Numpy 2D array with columns of ranges and depths
-                                     [2000., 380.]]),
-                      rmax=500.,
-                      dr=rh,
-                      #dz=dz,
-                      zmplt=380.,
-                      c0=c0,
-                      np=npdefault,
-                      )
-        results = pyram.run()
-        tl.append(-pyram.tll[0])
-        print(pyram.vr[0], pyram.vr[-1], pyram.vz[0], pyram.vz[-1])
-
-    mu = 1
-
-    r = np.hypot(rh, zr-zs)
-    theta = np.abs(np.arctan2(zr, rh))
-    f0 = c0 / (4*zs*np.sin(theta))
-    plt.semilogx(freqs, tl, label='Pyram')
-    plt.semilogx(freqs, -20*np.log10(r)*np.ones(len(freqs)), label='20log(r)')
-    plt.semilogx(freqs, -20*np.log10(r)+10*np.log10(1+mu**2-2*mu*np.cos(np.pi*freqs/f0)), label='LM')
-    plt.xlabel('Frequency [Hz]')
-    plt.ylabel('Tloss [dB re 1m]')
-    plt.legend()
-    plt.show()
-
-
-if __name__ == '__main__':
-    example3()
