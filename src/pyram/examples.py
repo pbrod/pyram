@@ -38,7 +38,7 @@ def example1():
 
 
 def example2():
-    """Transmission loss contour-plto for f=50Hz"""
+    """Transmission loss contour plot for f=50 Hz."""
     pyram2 = PyRAM(
         freq=50,
         zs=4,

@@ -36,9 +36,10 @@ from pyram.outpt import outpt
 from pyram.solve import solve
 
 __all__ = (
-    "PyRAM",
     "arctic_profile",
     "munk_profile",
+    "PyRAM",
+    "PyRAMResults",
 )
 
 
@@ -356,17 +357,10 @@ class PyRAM:
 
         Returns
         -------
-        dict
-            Dictionary containing ranges, depths, transmission loss,
-            complex pressure, processing time, and model metadata:
-
-            vr: Calculation ranges (m), NumPy 1D array.
-            vz: Calculation depths (m), NumPy 1D array.
-            tll: Transmission loss (dB) at receiver depth (zr),
-                NumPy 1D array, length vr.size.
-            tlg: Transmission loss (dB) grid,
-                NumPy 2D array, dimensions vz.size by vr.size.
-            proc_time: Processing time (s).
+        PyRAMResults
+            Model output containing ranges, depths, transmission loss,
+            complex pressure, reference sound speed, processing time,
+            and run identifier.
         """
 
         t0 = process_time()
