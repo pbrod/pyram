@@ -14,9 +14,7 @@ from pyram.PyRAMmp import PyRAMmp
 def test_pyrammp():
     """Verify PyRAMmp produces results consistent with sequential PyRAM runs."""
 
-    config = et.parse(
-        Path(__file__).parent / "TestPyRAMmp_Config.xml"
-    ).getroot()
+    config = et.parse(Path(__file__).parent / "TestPyRAMmp_Config.xml").getroot()
 
     dr = float(config.find("RangeStep").text)
     dz = float(config.find("DepthStep").text)

@@ -24,20 +24,24 @@ def test_pyram():
         zr=50,
         z_ss=np.array([0, 100, 400]),
         rp_ss=np.array([0, 25000]),
-        cw=np.array([
-            [1480, 1530],
-            [1520, 1530],
-            [1530, 1530],
-        ]),
+        cw=np.array(
+            [
+                [1480, 1530],
+                [1520, 1530],
+                [1530, 1530],
+            ]
+        ),
         z_sb=np.array([0]),
         rp_sb=np.array([0]),
         cb=np.array([[1700]]),
         rhob=np.array([[1.5]]),
         attn=np.array([[0.5]]),
-        rbzb=np.array([
-            [0, 200],
-            [40000, 400],
-        ]),
+        rbzb=np.array(
+            [
+                [0, 200],
+                [40000, 400],
+            ]
+        ),
         rmax=50000,
         dr=500,
         dz=2,
@@ -50,7 +54,4 @@ def test_pyram():
     np.testing.assert_array_equal(ref_r, pyram.vr)
 
     mean_diff = np.mean(np.abs(pyram.tll - ref_tl))
-    assert mean_diff <= 1e-2, (
-        f"Mean TL difference ({mean_diff:.6f} dB) exceeds tolerance "
-        f"(0.01 dB)"
-    )
+    assert mean_diff <= 1e-2, f"Mean TL difference ({mean_diff:.6f} dB) exceeds tolerance (0.01 dB)"

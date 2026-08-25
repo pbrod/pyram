@@ -1,4 +1,1 @@
-__all__ = (
-    'TestPyRAM',
-    'TestPyRAMmp'
-)
+__all__ = ("TestPyRAM", "TestPyRAMmp")

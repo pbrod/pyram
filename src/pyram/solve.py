@@ -2,14 +2,26 @@
 solve function definition
 """
 
-from numba import jit, int64, complex128
+from numba import complex128, int64, jit
 
 
-@jit((complex128[:], complex128[:], complex128[:, :], complex128[:, :],
-      complex128[:, :], complex128[:, :], complex128[:, :], complex128[:, :],
-      int64, int64, int64), nopython=True)
+@jit(
+    (
+        complex128[:],
+        complex128[:],
+        complex128[:, :],
+        complex128[:, :],
+        complex128[:, :],
+        complex128[:, :],
+        complex128[:, :],
+        complex128[:, :],
+        int64,
+        int64,
+        int64,
+    ),
+    nopython=True,
+)
 def solve(u, v, s1, s2, s3, r1, r2, r3, iz, nz, np):
-
     """
     The tridiagonal solver
     """
@@ -27,8 +39,7 @@ def solve(u, v, s1, s2, s3, r1, r2, r3, iz, nz, np):
         for i in range(nz - 1, iz + 1, -1):
             v[i] -= r3[i, j] * v[i + 1] + eps
 
-        u[iz + 1] = (v[iz + 1] - r1[iz + 1, j] * v[iz] - r3[iz + 1, j] * v[iz + 2]) * \
-            r2[iz + 1, j] + eps
+        u[iz + 1] = (v[iz + 1] - r1[iz + 1, j] * v[iz] - r3[iz + 1, j] * v[iz + 2]) * r2[iz + 1, j] + eps
 
         # The back substitution steps
         for i in range(iz, -1, -1):

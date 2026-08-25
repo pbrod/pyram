@@ -12,16 +12,13 @@ def example1():
         zr=50,
         z_ss=np.array([0, 100, 400]),
         rp_ss=np.array([0, 25000]),
-        cw=np.array([[1480, 1530],
-                     [1520, 1530],
-                    [1530, 1530]]),
+        cw=np.array([[1480, 1530], [1520, 1530], [1530, 1530]]),
         z_sb=np.array([0]),
         rp_sb=np.array([0]),
         cb=np.array([[1700]]),
         rhob=np.array([[1.5]]),
         attn=np.array([[0.5]]),
-        rbzb=np.array([[0, 200],
-                       [40000, 400]]),
+        rbzb=np.array([[0, 200], [40000, 400]]),
         rmax=50000,
         dr=500,
         dz=2,
@@ -46,16 +43,13 @@ def example2():
         zr=45,
         z_ss=np.array([0, 100, 400]),
         rp_ss=np.array([0, 25000]),
-        cw=np.array([[1480, 1530],
-                     [1520, 1530],
-                     [1530, 1530]]),
+        cw=np.array([[1480, 1530], [1520, 1530], [1530, 1530]]),
         z_sb=np.array([0]),
         rp_sb=np.array([0]),
         cb=np.array([[1700]]),
         rhob=np.array([[1.5]]),
         attn=np.array([[0.5]]),
-        rbzb=np.array([[0, 200],
-                       [40000, 400]]),
+        rbzb=np.array([[0, 200], [40000, 400]]),
         rmax=500,
         dr=10,
         dz=0.2,
@@ -136,7 +130,7 @@ def example3():
     for f in freqs:
         npdefault = 8 if f < 50 else 4
         # dr = min(npdefault*1500 /f,  rh /10)
-        dz = 100. / f
+        dz = 100.0 / f
         pyram3 = PyRAM(
             freq=f,  # frequency
             zs=zs,  # Source depth (m)
@@ -171,7 +165,7 @@ def example3():
             np=npdefault,
         )
         pyram3.run()
-        i0 = np.argmin(np.abs(pyram3.vr-rh))
+        i0 = np.argmin(np.abs(pyram3.vr - rh))
         tl.append(-pyram3.tll[i0])
         print(pyram3.vr[0], pyram3.vr[-1], pyram3.vz[0], pyram3.vz[-1], dr, dz, i0)
 
