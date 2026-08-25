@@ -194,22 +194,22 @@ class PyRAM:
     Other Parameters
     ----------------
     np : int, optional
-        Number of Padé terms. Defaults to ``_np_default``.
+        Number of Padé approximation terms. Defaults to ``_np_default`` (8).
     c0 : float, optional
         Reference sound speed [m/s]. Defaults to the mean of the
         first water sound-speed profile.
     dr : float, optional
-        Calculation range step [m]. Defaults to ``np`` times the
+        Calculation range step [m]. Defaults to ``0.5`` times the
         acoustic wavelength.
     dz : float, optional
         Calculation depth step [m]. Defaults to
-        ``_dzf * wavelength``.
+        ``0.05`` times the acoustic wavelength.
     ndr : int, optional
         Number of range steps between outputs. Defaults to
-        ``_ndr_default``.
+        ``_ndr_default`` (1).
     ndz : int, optional
         Number of depth steps between outputs. Defaults to
-        ``_ndz_default``.
+        ``_ndz_default`` (1).
     zmplt : float, optional
         Maximum output depth [m]. Defaults to the maximum depth in
         ``rbzb``.
@@ -218,37 +218,82 @@ class PyRAM:
         range in ``rp_ss``, ``rp_sb``, or ``rbzb``.
     ns : int, optional
         Number of stability constraints. Defaults to
-        ``_ns_default``.
+        ``_ns_default`` (1).
     rs : float, optional
         Maximum range [m] over which stability constraints are
         applied. Defaults to ``rmax``.
     lyrw : float, optional
         Width of the absorbing layer [wavelengths]. Defaults to
-        ``_lyrw_default``.
+        ``_lyrw_default`` (20).
     id : int, optional
-        Integer identifier for the model instance.
+        Integer identifier for the model instance. Defaults to
+        ``_id_default`` (0).
 
     Notes
     -----
-    Selecting appropriate grid spacing is important for achieving an
-    efficient balance between accuracy and computational cost.
+    RAM is intended primarily for low-frequency acoustic propagation
+    (typically below approximately 500 Hz) in range-dependent environments
+    consisting of fluid layers and neglecting seabed shear waves.
 
-    The depth step ``dz`` typically has the greatest influence on both
-    accuracy and run time. For example, ``dz = 1.0`` m is often adequate,
-    whereas ``dz = 0.2`` m may provide substantially greater accuracy at
-    the expense of roughly an order-of-magnitude increase in computation
-    time. Higher frequencies generally require smaller values of ``dz``.
-    For frequencies around 250 Hz, a value near ``dz = 0.2`` m may be
-    necessary.
+    The numerical accuracy is primarily controlled by ``np``, ``dr``, and ``dz``.
+    Increasing the number of Padé terms generally improves accuracy at
+    the expense of increased computational cost. The number of stability
+    constraints (``ns``) can be increased if the solution exhibits
+    numerical instability for any combination of ``np``, ``dr`` and ``dz``.
 
-    The model is generally less sensitive to the range step ``dr``.
-    However, ``dr`` must be small enough for the parabolic-equation
-    solution to converge. In addition, ``N * dr`` should match the
-    horizontal sampling interval of the environmental data, where ``N``
-    is an integer. For example, if the sound-speed field is sampled every
-    1000 m, then ``dr = 250`` m is suitable. For a sampling interval of
-    400 m, ``dr = 200`` m is a better choice. Computation time is
-    approximately inversely proportional to ``dr``.
+    General rules for using RAM:
+
+    As a rule of thumb use:
+
+       ``dr`` <= 0.66 * wavelength           (1)
+       ``dz`` <= 0.066 * wavelength          (2)
+
+    The default values of ``dr`` and ``dz`` satisfy these recommendations.
+    The allowable range-step size is limited by the degree of range
+    dependence in the environment. The RAM PE solver permits arbitrarily
+    large range steps of many wavelengths for range-independent regions
+    and dense range sampling. For an environment with small range variations,
+    a solution computed using the range-step specifications defined by
+    Eq. (1) and sampled on a fine scale, is barely distinguishable from a
+    solution computed with large range steps (``dr = 50 * wavelength``),
+    although sampled more sparsely. Calculations with a range step size that
+    satisfies Eq. (1) are computationally inefficient for environments with
+    small variations, but will handle a greater range of environments without
+    the hassle of having to evaluate the rate of range dependency and can
+    provide a solution that is sampled on a fine scale.
+
+    Occasionally you will see output that looks like the computation stopped
+    halfway or the data will be blank. This likely means there was an
+    instability in the calculation. The usual remedy is to vary ``dr`` until
+    a stable solution is obtained. If varying ``dr`` does not eliminate
+    the instability, try increasing ``ns`` above 1.
+
+    It is good to refine your grid (make ``dr`` and ``dz`` smaller) and increase
+    the number of Padé terms to ensure that the solution has converged.
+    Experience will guide you in deciding numerical parameters given a frequency
+    and geoacoustic environment.
+
+    The RAM model approximates a semi-infinite bottom half-space by
+    appending an artificial high-attenuation layer, also called a sponge layer,
+    at the lower boundary of the physical domain in order to prevent spurious
+    reflections from the lower computational boundary. The thickness of this
+    layer is controlled by ``lyrw``, which defaults to 20 wavelengths.
+
+    References
+    ----------
+    [1] M. D. Collins (1993), "A split-step Padé solution for the parabolic equation method",
+        J. Acoust. Soc. Am., vol. 93, pp. 1736-1742
+    [2] M. D. Collins (2015), "User's Guide for RAM Version 1.0 and 1.0p",
+        Naval Research Laboratory.
+        [Online]. Available:
+        http://staff.washington.edu/dushaw/AcousticsCode/ram.pdf
+    [3] D. Calvo (2006), "Quick introduction to using the Naval Research Laboratory RAM parabolic
+        equation (PE) code that includes bottom loss",
+        Naval Research Laboratory.
+        [Online]. Available:
+        http://oalib.hlsresearch.com/PE/ramsurf/readme.orig
+    [4] M. D. Collins (1994), "Generalization of the split-step Padé solution",
+        J. Acoust. Soc. Am., vol. 96, pp. 382-385
     """
 
     _np_default = 8
@@ -704,7 +749,7 @@ class PyRAM:
             )
 
     def selfs(self):
-        """The self-starter"""
+        """Set up the initial field. The self-starter"""
 
         # Conditions for the delta function
 
