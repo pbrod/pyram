@@ -25,6 +25,7 @@ PyRAM also provides various conveniences, e.g. automatic calculation of range
 and depth steps (though these can be overridden using keyword arguments).
 """
 
+import warnings
 from time import process_time
 
 import numpy as np
@@ -33,61 +34,224 @@ from pyram.matrc import matrc
 from pyram.outpt import outpt
 from pyram.solve import solve
 
+from numpy.typing import ArrayLike
 
-class PyRAM:
+
+def arctic_profile(
+    z,
+    c0=1440.0,
+    gradient=0.02,
+):
     """
-    Attributes
-    ----------
-    freq: Frequency (Hz).
-    zs: Source depth (m).
-    zr: Receiver depth (m).
-    z_ss: Depths (m) for water sound speed values, NumPy 1D array.
-    rp_ss: Ranges (m) for water sound speed values, NumPy 1D array.
-    cw: Water sound speed values (m/s),
-        Numpy 2D array, dimensions z_ss.size by rp_ss.size.
-    z_sb: Depths for seabed parameter values, NumPy 1D array.
-    rp_sb: Ranges (m) for seabed parameter, NumPy 1D array.
-    cb: Seabed sound speed values (m/s),
-        NumPy 2D array, dimensions z_sb.size by rp_sb.size.
-    rhob: Seabed density values (g/cm3), same dimensions as cb
-    attn: Seabed attenuation values (dB/wavelength), same dimensions as cb
-    rbzb: Bathymetry (m), Numpy 2D array with columns of ranges and depths
+    Simple Arctic sound-speed profile.
 
-    kwargs...
-    ---------
-    np: Number of Pade terms. Defaults to _np_default.
-    c0: Reference sound speed (m/s). Defaults to mean of 1st profile.
-    dr: Calculation range step (m). Defaults to np times the wavelength.
-    dz: Calculation depth step (m). Defaults to _dzf*wavelength.
-    ndr: Number of range steps between outputs. Defaults to _ndr_default.
-    ndz: Number of depth steps between outputs. Defaults to _ndz_default.
-    zmplt: Maximum output depth (m). Defaults to maximum depth in rbzb.
-    rmax: Maximum calculation range (m). Defaults to max in rp_ss or rp_sb.
-    ns: Number of stability constraints. Defaults to _ns_default.
-    rs: Maximum range of the stability constraints (m). Defaults to rmax.
-    lyrw: Absorbing layer width (wavelengths). Defaults to _lyrw_default.
-    NB: original zmax input not needed due to lyrw.
-    id: Integer identifier for this instance.
+    Parameters
+    ----------
+    z : array_like
+        Depth [m], positive downward.
+    c0 : float
+        Surface sound speed [m/s].
+    gradient : float
+        Vertical sound-speed gradient [m/s/m].
+        gradient = 0.02 corresponds to an increase of
+        approximately 20 m/s per km depth.
+
+    Returns
+    -------
+    ndarray
+        Sound speed [m/s].
 
     Notes
     -----
-    Picking the correct grid size for ultimate speed is important.
-    While coarser grid is faster, it will not be as accurate.
-    A dz=1.0 is OK., while a dz=0.2 will produce more accurate results
-    but take an order of magnitude longer to complete. This value is also
-    dependent on frequency, with higher frequencies demanding smaller values.
-    For fc=250Hz, dz=0.2 is probably closer to what is needed.
+    This is not a standard published sound-speed profile.
+    It is a simple first-order approximation motivated by the
+    approximately monotonic increase of sound speed with depth
+    observed in many Arctic and Antarctic water columns.
 
-    The code is less sensitive to the range step (dr), but this value should
-    be set small enough so that the PE converges. Also, N*dr should equal
-    the sound-speed horizontal sampling distance, where N is an integer.
-    So if you've used a sound speed grid of 1000m, dr=250 should work,
-    but if you use a sound speed grid of 400m, then set dr=200m. The
-    value of dr is inversely proportional to computation time.
+    References
+    ----------
+    Munk, W., Worcester, P., and Wunsch, C.
+    Ocean Acoustic Tomography.
+    Cambridge University Press, 1995.
+    """
+    if c0 <= 0:
+        raise ValueError("c0 must be positive")
+    if gradient < 0:
+        warnings.warn(
+            "Negative gradient produces decreasing sound speed with depth.",
+            stacklevel=2,
+        )
+    z = np.asarray(z, dtype=float)
+
+    return c0 + gradient * z
+
+
+def munk_profile(
+    z,
+    c0=1500.0,
+    epsilon=0.00737,
+    z_axis=1300.0,
+    scale_depth=1300.0,
+):
+    """
+    Canonical Munk sound-speed profile.
+
+    Parameters
+    ----------
+    z : array_like
+        Depth [m], positive downward.
+    c0 : float, optional
+        Reference sound speed [m/s].
+    epsilon : float, optional
+        Dimensionless profile-strength parameter.
+    z_axis : float, optional
+        Sound-channel axis depth [m].
+    scale_depth : float, optional
+        Scale depth [m].
+
+    Returns
+    -------
+    ndarray
+        Sound speed [m/s].
+
+    Notes
+    -----
+    The Munk profile is defined as
+
+        c(z) = c0 * [1 + ε * (η + exp(-η) - 1)]
+
+    where
+
+        η = 2 * (z - z_axis) / scale_depth.
+
+    References
+    ----------
+    Munk, W.
+    "Sound channel in an exponentially stratified ocean,
+    with application to SOFAR."
+    Journal of the Acoustical Society of America,
+    55(2), 1974.
+
+    Munk, W., Worcester, P., and Wunsch, C.
+    Ocean Acoustic Tomography.
+    Cambridge University Press, 1995.
+    """
+    if scale_depth <= 0:
+        raise ValueError("scale_depth must be positive")
+    if c0 <= 0:
+        raise ValueError("c0 must be positive")
+    if z_axis < 0:
+        raise ValueError("z_axis must be non-negative")
+    if epsilon < 0:
+        warnings.warn(
+            "Negative epsilon produces an inverted Munk profile.",
+            stacklevel=2,
+        )
+
+    z = np.asarray(z, dtype=float)
+
+    eta = 2.0 * (z - z_axis) / scale_depth
+
+    return c0 * (1.0 + epsilon * (eta + np.expm1(-eta)))
+
+
+class PyRAM:
+    """
+    Range dependent Acoustic Model (RAM)
+
+    Parameters
+    ----------
+    freq : float
+        Acoustic frequency [Hz].
+    zs : float
+        Source depth [m].
+    zr : float
+        Receiver depth [m].
+    z_ss : ndarray
+        Depths [m] corresponding to water sound-speed values.
+    rp_ss : ndarray
+        Ranges [m] corresponding to water sound-speed values.
+    cw : ndarray
+        Water sound-speed values [m/s], with shape
+        ``(z_ss.size, rp_ss.size)``.
+    z_sb : ndarray
+        Depths [m] corresponding to seabed property values.
+    rp_sb : ndarray
+        Ranges [m] corresponding to seabed property values.
+    cb : ndarray
+        Seabed sound-speed values [m/s], with shape
+        ``(z_sb.size, rp_sb.size)``.
+    rhob : ndarray
+        Seabed density values [g/cm³], with the same shape as
+        ``cb``.
+    attn : ndarray
+        Seabed attenuation values [dB/wavelength], with the same
+        shape as ``cb``.
+    rbzb : ndarray
+        Bathymetry array [m], with columns containing range and
+        depth pairs.
+
+    Other Parameters
+    ----------------
+    np : int, optional
+        Number of Padé terms. Defaults to ``_np_default``.
+    c0 : float, optional
+        Reference sound speed [m/s]. Defaults to the mean of the
+        first water sound-speed profile.
+    dr : float, optional
+        Calculation range step [m]. Defaults to ``np`` times the
+        acoustic wavelength.
+    dz : float, optional
+        Calculation depth step [m]. Defaults to
+        ``_dzf * wavelength``.
+    ndr : int, optional
+        Number of range steps between outputs. Defaults to
+        ``_ndr_default``.
+    ndz : int, optional
+        Number of depth steps between outputs. Defaults to
+        ``_ndz_default``.
+    zmplt : float, optional
+        Maximum output depth [m]. Defaults to the maximum depth in
+        ``rbzb``.
+    rmax : float, optional
+        Maximum calculation range [m]. Defaults to the maximum
+        range in ``rp_ss``, ``rp_sb``, or ``rbzb``.
+    ns : int, optional
+        Number of stability constraints. Defaults to
+        ``_ns_default``.
+    rs : float, optional
+        Maximum range [m] over which stability constraints are
+        applied. Defaults to ``rmax``.
+    lyrw : float, optional
+        Width of the absorbing layer [wavelengths]. Defaults to
+        ``_lyrw_default``.
+    id : int, optional
+        Integer identifier for the model instance.
+
+    Notes
+    -----
+    Selecting appropriate grid spacing is important for achieving an
+    efficient balance between accuracy and computational cost.
+
+    The depth step ``dz`` typically has the greatest influence on both
+    accuracy and run time. For example, ``dz = 1.0`` m is often adequate,
+    whereas ``dz = 0.2`` m may provide substantially greater accuracy at
+    the expense of roughly an order-of-magnitude increase in computation
+    time. Higher frequencies generally require smaller values of ``dz``.
+    For frequencies around 250 Hz, a value near ``dz = 0.2`` m may be
+    necessary.
+
+    The model is generally less sensitive to the range step ``dr``.
+    However, ``dr`` must be small enough for the parabolic-equation
+    solution to converge. In addition, ``N * dr`` should match the
+    horizontal sampling interval of the environmental data, where ``N``
+    is an integer. For example, if the sound-speed field is sampled every
+    1000 m, then ``dr = 250`` m is suitable. For a sampling interval of
+    400 m, ``dr = 200`` m is a better choice. Computation time is
+    approximately inversely proportional to ``dr``.
     """
 
     _np_default = 8
-    _dzf = 0.1
     _ndr_default = 1
     _ndz_default = 1
     _ns_default = 1
@@ -97,7 +261,7 @@ class PyRAM:
     def __init__(self, freq, zs, zr, z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb, **kwargs):
         self._freq, self._zs, self._zr = freq, zs, zr
         self.check_inputs(z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb)
-        self.get_params(**kwargs)
+        self.set_params(**kwargs)
 
     def run(self):
         """
@@ -218,20 +382,19 @@ class PyRAM:
         self.rd_sb = True if self._rp_sb.size > 1 else False
         self.rd_bt = True if self._rbzb.shape[0] > 1 else False
 
-    def get_params(self, **kwargs):
-        """
-        Get the parameters from the keyword arguments
-        """
+    def set_params(self, **kwargs):
+        """Set the parameters from the keyword arguments"""
 
         self._np = kwargs.get("np", PyRAM._np_default)
 
-        self._c0 = kwargs.get("c0", np.mean(self._cw[:, 0]) if len(self._cw.shape) > 1 else np.mean(self._cw))
+        c0 = np.mean(self._cw[:, 0]) if len(self._cw.shape) > 1 else np.mean(self._cw)
+        self._c0 = kwargs.get("c0", c0)
 
-        self._lambda = self._c0 / self._freq
+        self._lambda = lambda0 = self._c0 / self._freq
 
-        # dr and dz are based on 1500m/s to get sensible output steps
-        self._dr = kwargs.get("dr", self._np * 1500 / self._freq)
-        self._dz = kwargs.get("dz", PyRAM._dzf * 1500 / self._freq)
+        # dr and dz are based on c0 to get sensible output steps
+        self._dr = kwargs.get("dr", 0.5 * lambda0)
+        self._dz = kwargs.get("dz", 0.05 * lambda0)
 
         self._ndr = kwargs.get("ndr", PyRAM._ndr_default)
         self._ndz = kwargs.get("ndz", PyRAM._ndz_default)
@@ -252,9 +415,7 @@ class PyRAM:
         self.proc_time = None
 
     def setup(self):
-        """
-        Initialise the parameters, acoustic field, and matrices
-        """
+        """Initialise the parameters, acoustic field, and matrices"""
 
         if self._rbzb[-1, 0] < self._rmax:
             self._rbzb = np.append(self._rbzb, np.array([[self._rmax, self._rbzb[-1, 1]]]), axis=0)
@@ -358,9 +519,7 @@ class PyRAM:
         )
 
     def profl(self):
-        """
-        Set up the profiles
-        """
+        """Set up the profiles"""
 
         attnf = 10  # 10dB/wavelength at floor
 
@@ -404,9 +563,7 @@ class PyRAM:
         self.alpb = np.sqrt(self.rhob * self.cb / self._c0)
 
     def updat(self):
-        """
-        Matrix updates
-        """
+        """Matrix updates"""
 
         # Varying bathymetry
         if self.rd_bt:
@@ -547,9 +704,7 @@ class PyRAM:
             )
 
     def selfs(self):
-        """
-        The self-starter
-        """
+        """The self-starter"""
 
         # Conditions for the delta function
 
@@ -626,9 +781,7 @@ class PyRAM:
         )
 
     def epade(self, ip=1):
-        """
-        The coefficients of the rational approximation
-        """
+        """Set the coefficients of the rational approximation"""
 
         n = 2 * self._np
         _bin = np.zeros([n + 1, n + 1])
@@ -704,9 +857,7 @@ class PyRAM:
 
     @staticmethod
     def deriv(n, sig, alp, dg, dh1, dh2, dh3, _bin, nu):
-        """
-        The derivatives of the operator function at x=0
-        """
+        """Return the derivatives of the operator function at x=0"""
 
         dh1[0] = 0.5 * 1j * sig
         exp1 = -0.5
@@ -781,9 +932,7 @@ class PyRAM:
 
     @staticmethod
     def fndrt(a, n, z, guerre):
-        """
-        The root finding subroutine
-        """
+        """Find the roots of polynomial a"""
 
         if n == 1:
             z[0] = -a[0] / a[1]
@@ -813,7 +962,7 @@ class PyRAM:
     @staticmethod
     def guerre(a, n, z, err, nter):
         """
-        This subroutine finds a root of a polynomial of degree n > 2 by Laguerre's method
+        Return the root of a polynomial of degree n > 2 by Laguerre's method
         """
 
         az = np.zeros(n, dtype=np.complex128)
