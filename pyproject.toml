@@ -37,12 +37,15 @@ dependencies = [
     "numba>=0.58",
 ]
 
+[project.optional-dependencies]
+plot =["matplotlib>=3.8.0"]
 
 [dependency-groups]
 test = [
-    "pytest>=8.0",
-     "ruff>=0.12",
+    "matplotlib>=3.8.0",
     "mypy>=1.11.2",
+    "pytest>=8.0",
+    "ruff>=0.12",
 ]
 
 [tool.mypy]
