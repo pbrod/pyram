@@ -51,8 +51,8 @@ jobs:
       - name: Lint
         run: pdm run check-style
 
-#      - name: Type check
-#        run: pdm run check-types
+      - name: Type check
+        run: pdm run check-types
 
       - name: Run tests
         run: pdm run tests
