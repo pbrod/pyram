@@ -1,6 +1,60 @@
+#
+# Recommended release workflow
+#
+# Development:
+#   git checkout develop
+#   git pull origin develop
+#   pdm format
+#   pdm check-style
+#   pdm check-types
+#   pdm all-tests
+#
+# Prepare release:
+#   pdm install -G release   # Install release tools if needed
+#   pdm prepare-release      # update CHANGELOG.md. Inspect and verify.
+#   git log v1.3.0..HEAD --oneline > log.txt
+#   git add .
+#   git commit -m "Prepare release"
+#   git push
+#
+# Determine version:
+#   pdm bump suggest
+#   pdm bump pre-release --pre alpha              # creates 0.1.1a1 from 0.1.0
+#   pdm bump pre-release --pre beta               # creates 0.1.1b1 from 0.1.1a1
+#   pdm bump pre-release --pre release-candidate  # creates 0.1.1rc1 from 0.1.1b1
+#   pdm bump no-pre-release                       # creates 0.1.1 from 0.1.1rc1
+#   pdm bump micro                                # creates 0.1.2 from 0.1.1
+#   pdm bump minor                                # creates 0.2.0 from 0.1.2
+#   pdm bump major                                # creates 1.0.0 from 0.2.0
+#
+# Release:
+#  Merge develop into master:
+#   git checkout master
+#   git pull origin master
+#   git merge --no-ff develop
+#   git push origin master                        # Wait for CI to complete successfully
+#
+# Create and publish release tag:
+#   pdm bump tag                                  # creates a git tag with a leading v
+#   git push --tags                               # publish the new version
+#
+# Note:
+# Publishing to PyPI occurs when a tag beginning with 'v'
+# is pushed and the GitHub release workflow succeeds.
+#
+# Rebuilding the lock files:
+#   pdm lock-all
+#
+# After the release, merge master back into develop
+# so that release commits and version changes are present in develop:
+#   git checkout develop
+#   git pull origin develop
+#   git merge master
+#   git push origin develop
+
 [project]
 name = "pyram"
-version = "1.3.0"
+dynamic = ["version"]
 description = "Python adaptation of the Range-dependent Acoustic Model (RAM)"
 authors = [
     { name = "Marcus Donnelly", email = "marcus.k.donnelly@gmail.com" }
@@ -46,6 +100,10 @@ test = [
     "mypy>=1.11.2",
     "pytest>=8.0",
     "ruff>=0.12",
+]
+release = [
+    "git-cliff>=2.6.1",
+    "pdm-bump>=0.9.8",
 ]
 
 [tool.mypy]
@@ -101,8 +159,17 @@ build-backend = "pdm.backend"
 [tool.pdm]
 distribution = true
 
+[tool.pdm.resolution]
+# Required to test upcoming Python / NumPy / Numba releases.
+allow-prereleases = true
+
+[tool.pdm.version]
+source = "file"
+path = "src/pyram/__init__.py"
+
 [tool.pdm.scripts]
 lock = "pdm lock -dG all"
+# Separate lock file for Python >= 3.14:
 lock-py314 = "pdm lock -L pdm.lock314 --python 3.14 --strategy no_direct_minimal_versions -dG all"
 lock-all = {composite = ["lock", "lock-py314"]}
 
@@ -113,3 +180,9 @@ check-types = "mypy ./src/"  # check types
 tests = {cmd = "pytest", env = {MPLBACKEND = "Agg"}}
 test = {composite = ["tests"]}
 all-tests = {composite = ["format", "check-style", "check-types", "tests"]}
+
+show-next-version = "git-cliff --bumped-version"  # calculate and print the next semantic version to stdout
+show-next-changelog = "git-cliff"
+append-changelog = "git-cliff --unreleased --prepend CHANGELOG.md"  # prepend new entries to CHANGELOG.md without footer part
+
+prepare-release = {composite = ["append-changelog"]}

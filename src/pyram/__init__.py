@@ -16,3 +16,5 @@ __all__ = (
     "munk_profile",
     "PyRAMResults",
 )
+
+__version__ = "1.3.0"
