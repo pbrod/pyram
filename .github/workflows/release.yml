@@ -1,0 +1,87 @@
+# .github/workflows/release.yml
+
+name: CD - PyPI Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  pypi-publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pyram/
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up PDM
+        uses: pdm-project/setup-pdm@v4
+
+      - name: Check whether version already exists on PyPI
+        id: check_version
+        shell: bash
+        run: |
+          PACKAGE_NAME=$(python <<'PY'
+          import tomllib
+
+          with open("pyproject.toml", "rb") as f:
+              print(tomllib.load(f)["project"]["name"])
+          PY
+          )
+
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+
+          URL="https://pypi.org/pypi/${PACKAGE_NAME}/${VERSION}/json"
+
+          STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" "$URL")
+
+          echo "Package: $PACKAGE_NAME"
+          echo "Version: $VERSION"
+          echo "PyPI response: $STATUS"
+
+          if [ "$STATUS" = "200" ]; then
+            echo "version_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: pdm sync -G release
+
+      - name: Build package
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: pdm build
+
+      - name: Show build artifacts
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: ls -lah dist/
+
+      - name: Verify wheel installation
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: |
+          python -m venv test_env
+          test_env/bin/pip install dist/*.whl
+          test_env/bin/python -c "import pyram"
+
+      - name: Publish to PyPI
+        if: steps.check_version.outputs.version_exists == 'false'
+        run: pdm publish
