@@ -7,7 +7,7 @@ import numpy as np
 from pyram.PyRAM import PyRAM
 
 
-def test_pyram():
+def test_pyram() -> None:
     """Verify PyRAM reproduces the reference RAM solution."""
 
     dat = np.fromfile(

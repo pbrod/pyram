@@ -4,7 +4,6 @@ from .PyRAM import (
     arctic_profile,
     munk_profile,
 )
-
 from .PyRAMmp import PyRAMmp
 
 __all__ = (

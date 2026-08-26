@@ -2,7 +2,9 @@
 solve function definition
 """
 
+import numpy as np
 from numba import complex128, int64, jit
+from numpy.typing import NDArray
 
 
 @jit(
@@ -21,14 +23,26 @@ from numba import complex128, int64, jit
     ),
     nopython=True,
 )
-def solve(u, v, s1, s2, s3, r1, r2, r3, iz, nz, np):
+def solve(
+    u: NDArray[np.complex128],
+    v: NDArray[np.complex128],
+    s1: NDArray[np.complex128],
+    s2: NDArray[np.complex128],
+    s3: NDArray[np.complex128],
+    r1: NDArray[np.complex128],
+    r2: NDArray[np.complex128],
+    r3: NDArray[np.complex128],
+    iz: int,
+    nz: int,
+    np_: int,
+) -> None:
     """
     The tridiagonal solver
     """
 
     eps = 1e-30
 
-    for j in range(np):
+    for j in range(np_):
         # The right side
         for i in range(1, nz + 1):
             v[i] = s1[i, j] * u[i - 1] + s2[i, j] * u[i] + s3[i, j] * u[i + 1] + eps

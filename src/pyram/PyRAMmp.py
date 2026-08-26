@@ -4,34 +4,56 @@ PyRAMmp class definition
 
 from multiprocessing.pool import Pool
 from time import sleep
+from typing import Any, TypedDict
 
-from pyram.PyRAM import PyRAM
+import numpy as np
+from numpy.typing import NDArray
+
+from pyram.PyRAM import PyRAM, PyRAMResults
+
+FloatArray = NDArray[np.float64]
 
 
-def run_pyram(run):
+class PyRAMArgs(TypedDict):
+    freq: float
+    zs: float
+    zr: float
+    z_ss: FloatArray
+    rp_ss: FloatArray
+    cw: FloatArray
+    z_sb: FloatArray
+    rp_sb: FloatArray
+    cb: FloatArray
+    rhob: FloatArray
+    attn: FloatArray
+    rbzb: FloatArray
+
+
+PyRAMKwargs = dict[str, Any]
+PyRAMRun = tuple[PyRAMArgs, PyRAMKwargs]
+
+
+def run_pyram(run: PyRAMRun) -> PyRAMResults:
     """
     Add a new PyRAM run (needs to be a function rather than a class method)
     """
 
-    args, kwargs = run[0], run[1]
-
-    freq = args["freq"]
-    zs = args["zs"]
-    zr = args["zr"]
-    z_ss = args["z_ss"]
-    rp_ss = args["rp_ss"]
-    cw = args["cw"]
-    z_sb = args["z_sb"]
-    rp_sb = args["rp_sb"]
-    cb = args["cb"]
-    rhob = args["rhob"]
-    attn = args["attn"]
-    rbzb = args["rbzb"]
-
-    pyram = PyRAM(freq, zs, zr, z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb, **kwargs)
-    results = pyram.run()
-
-    return results
+    args, kwargs = run
+    return PyRAM(
+        freq=args["freq"],
+        zs=args["zs"],
+        zr=args["zr"],
+        z_ss=args["z_ss"],
+        rp_ss=args["rp_ss"],
+        cw=args["cw"],
+        z_sb=args["z_sb"],
+        rp_sb=args["rp_sb"],
+        cb=args["cb"],
+        rhob=args["rhob"],
+        attn=args["attn"],
+        rbzb=args["rbzb"],
+        **kwargs,
+    ).run()
 
 
 class PyRAMmp:
@@ -40,23 +62,33 @@ class PyRAMmp:
     parallel PyRAM model runs
     """
 
-    def __init__(self, processes=None, maxtasksperchild=None):
+    def __init__(
+        self,
+        processes: int | None = None,
+        maxtasksperchild: int | None = None,
+    ) -> None:
         """
         Initialise the pool and variable lists
         processes and maxtasksperchild are passed to the pool
         """
 
-        self.pool = Pool(processes=processes, maxtasksperchild=maxtasksperchild)
-        self.results = []  # Results from PyRAM.run()
-        self._outputs = []  # New outputs from PyRAM.run() for transfer to self.results
-        self._waiting = []  # Waiting runs
-        self._num_processes = len(self.pool.__dict__["_pool"])
-        self._num_waiting = 0  # Number of waiting runs
-        self._num_active = 0  # Number of active runs
-        self._sleep_time = 1e-2  # Minimum sleep time between adding runs to pool
-        self._new = True  # Flag to indicate ready for new set of runs
+        self.pool: Pool = Pool(processes=processes, maxtasksperchild=maxtasksperchild)
+        self.results: list[PyRAMResults] = []  # Results from PyRAM.run()
+        self._outputs: list[PyRAMResults] = []  # New outputs from PyRAM.run() for transfer to self.results
+        self._waiting: list[PyRAMRun] = []  # Waiting runs
+        self._num_processes = (
+            processes if processes is not None else self.pool._processes  # type: ignore[attr-defined]
+        )
+        self._num_waiting: int = 0  # Number of waiting runs
+        self._num_active: int = 0  # Number of active runs
+        self._sleep_time: float = 1e-2  # Minimum sleep time between adding runs to pool
+        self._new: bool = True  # Flag to indicate ready for new set of runs
 
-    def submit_runs(self, runs):
+    @property
+    def num_processes(self) -> int:
+        return self._num_processes
+
+    def submit_runs(self, runs: list[PyRAMRun]) -> None:
         """
         Submit new runs to the pool as resources become available
         runs is a list of PyRAM input tuples (args, kwargs)
@@ -69,8 +101,8 @@ class PyRAMmp:
 
         # Check how many active runs have finished
         for _ in range(len(self._outputs)):
-            run = self._outputs.pop(0)
-            self.results.append(run)
+            output = self._outputs.pop(0)
+            self.results.append(output)
             self._num_active -= 1
 
         num_start = self._num_processes - self._num_active
@@ -86,7 +118,7 @@ class PyRAMmp:
             self._new = False
             self._wait()
 
-    def _wait(self):
+    def _wait(self) -> None:
         """
         Wait for all submitted runs to complete
         """
@@ -97,7 +129,7 @@ class PyRAMmp:
 
         self._new = True
 
-    def close(self):
+    def close(self) -> None:
         """
         Close the pool and wait for all processes to finish
         """
@@ -105,13 +137,13 @@ class PyRAMmp:
         self.pool.close()
         self.pool.join()
 
-    def _get_output(self, output):
+    def _get_output(self, output: PyRAMResults) -> None:
         """
         Get a PyRAM output
         """
 
         self._outputs.append(output)
 
-    def __del__(self):
+    def __del__(self) -> None:
 
         self.close()

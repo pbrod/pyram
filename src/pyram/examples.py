@@ -4,8 +4,8 @@ import numpy as np
 from pyram.PyRAM import PyRAM, arctic_profile, munk_profile
 
 
-def example1():
-    """Plot long range transimission loss vs 15log(r). Same testcase as used in test_pyram"""
+def example1() -> None:
+    """Plot long range transmission loss vs 15log(r). Same testcase as used in test_pyram"""
     pyram = PyRAM(
         freq=50,
         zs=50,
@@ -37,7 +37,7 @@ def example1():
     plt.show()
 
 
-def example2():
+def example2() -> None:
     """Transmission loss contour plot for f=50 Hz."""
     pyram2 = PyRAM(
         freq=50,
@@ -77,13 +77,13 @@ def example2():
     plt.show()
 
 
-def example3():
+def example3() -> None:
     """
-    Plot RAM vs Lloyd mirror transmisson loss for all frequencies from 10 to 1kHz
+    Plot RAM vs Lloyd mirror transmission loss for all frequencies from 10 to 1kHz
     """
 
-    freqs = np.arange(10, 500, 5)
-    freqs = np.logspace(1, 3, 50)
+    # freqs = np.arange(10, 500, 5)
+    freqs = np.asarray(np.logspace(1, 3, 50), dtype=float)
     tl = []
     zs = 4.0
     zr = 45.0
@@ -152,7 +152,7 @@ def example3():
     plt.show()
 
 
-def example4():
+def example4() -> None:
     """
     Plot munk speed profile vs arctic speed profile
     """

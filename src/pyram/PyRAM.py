@@ -27,9 +27,10 @@ and depth steps (though these can be overridden using keyword arguments).
 
 import warnings
 from time import process_time
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 
 from pyram.matrc import matrc
 from pyram.outpt import outpt
@@ -69,22 +70,22 @@ class PyRAMResults(NamedTuple):
         Run identifier.
     """
 
-    ranges: np.ndarray
-    depths: np.ndarray
-    loss_grid: np.ndarray
-    loss_line: np.ndarray
-    pressure_grid: np.ndarray
-    pressure_line: np.ndarray
+    ranges: NDArray[np.float64]
+    depths: NDArray[np.float64]
+    loss_grid: NDArray[np.float64]
+    loss_line: NDArray[np.float64]
+    pressure_grid: NDArray[np.complex128]
+    pressure_line: NDArray[np.complex128]
     c0: float
     proc_time: float
     id: int
 
 
 def arctic_profile(
-    z,
-    c0=1440.0,
-    gradient=0.02,
-):
+    z: ArrayLike,
+    c0: float = 1440.0,
+    gradient: float = 0.02,
+) -> NDArray[np.float64]:
     """
     Simple Arctic sound-speed profile.
 
@@ -126,16 +127,16 @@ def arctic_profile(
         )
     z = np.asarray(z, dtype=float)
 
-    return c0 + gradient * z
+    return np.asarray(c0 + gradient * z, dtype=np.float64)
 
 
 def munk_profile(
-    z,
-    c0=1500.0,
-    epsilon=0.00737,
-    z_axis=1300.0,
-    scale_depth=1300.0,
-):
+    z: ArrayLike,
+    c0: float = 1500.0,
+    epsilon: float = 0.00737,
+    z_axis: float = 1300.0,
+    scale_depth: float = 1300.0,
+) -> NDArray[np.float64]:
     """
     Canonical Munk sound-speed profile.
 
@@ -195,7 +196,7 @@ def munk_profile(
 
     eta = 2.0 * (z - z_axis) / scale_depth
 
-    return c0 * (1.0 + epsilon * (eta + np.expm1(-eta)))
+    return np.asarray(c0 * (1.0 + epsilon * (eta + np.expm1(-eta))), dtype=np.float64)
 
 
 class PyRAM:
@@ -343,15 +344,95 @@ class PyRAM:
     _ndr_default = 1
     _ndz_default = 1
     _ns_default = 1
-    _lyrw_default = 20
+    _lyrw_default = 20.0
     _id_default = 0
 
-    def __init__(self, freq, zs, zr, z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb, **kwargs):
-        self._freq, self._zs, self._zr = freq, zs, zr
-        self.check_inputs(z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb)
-        self.set_params(**kwargs)
+    def __init__(
+        self,
+        freq: float | int,
+        zs: float | int,
+        zr: float | int,
+        z_ss: ArrayLike,
+        rp_ss: ArrayLike,
+        cw: ArrayLike,
+        z_sb: ArrayLike,
+        rp_sb: ArrayLike,
+        cb: ArrayLike,
+        rhob: ArrayLike,
+        attn: ArrayLike,
+        rbzb: ArrayLike,
+        **kwargs: Any,
+    ) -> None:
+        self._freq: float = float(freq)
+        self._zs: float = float(zs)
+        self._zr: float = float(zr)
 
-    def run(self):
+        # Store copies to avoid modifying caller-owned arrays
+        self._z_ss = np.array(z_ss, dtype=float, copy=True)
+        self._rp_ss = np.array(rp_ss, dtype=float, copy=True)
+        self._cw = np.array(cw, dtype=float, copy=True)
+
+        self._z_sb = np.array(z_sb, dtype=float, copy=True)
+        self._rp_sb = np.array(rp_sb, dtype=float, copy=True)
+        self._cb = np.array(cb, dtype=float, copy=True)
+        self._rhob = np.array(rhob, dtype=float, copy=True)
+        self._attn = np.array(attn, dtype=float, copy=True)
+
+        self._rbzb = np.array(rbzb, dtype=float, copy=True)
+        self._validate_inputs()
+
+        # Range-dependence flags
+        self.rd_ss = self._rp_ss.size > 1
+        self.rd_sb = self._rp_sb.size > 1
+        self.rd_bt = self._rbzb.shape[0] > 1
+
+        self.proc_time: float | None = None
+
+        # Work variables defined in setup
+        self.u: NDArray[np.complex128]
+        self.v: NDArray[np.complex128]
+
+        self.tll: NDArray[np.float64]
+        self.tlg: NDArray[np.float64]
+
+        self.cpl: NDArray[np.complex128]
+        self.cpg: NDArray[np.complex128]
+
+        self.s1: NDArray[np.complex128]
+        self.s2: NDArray[np.complex128]
+        self.s3: NDArray[np.complex128]
+
+        self.r1: NDArray[np.complex128]
+        self.r2: NDArray[np.complex128]
+        self.r3: NDArray[np.complex128]
+
+        self.vr: NDArray[np.float64]
+        self.vz: NDArray[np.float64]
+
+        self.iz: int
+        self.nz: int
+        self.ir: int
+        self.mdr: int
+        self.tlc: int
+
+        self.alpw: NDArray[np.float64]
+        self.alpb: NDArray[np.float64]
+
+        self.f1: NDArray[np.float64]
+        self.f2: NDArray[np.float64]
+        self.f3: NDArray[np.float64]
+
+        self.ksqw: NDArray[np.float64]
+
+        self.pd1: NDArray[np.complex128]
+        self.pd2: NDArray[np.complex128]
+
+        self.ksq: NDArray[np.complex128]
+        self.ksqb: NDArray[np.complex128]
+
+        self._initialize_params(**kwargs)
+
+    def run(self) -> PyRAMResults:
         """
         Run the acoustic propagation model.
 
@@ -404,7 +485,8 @@ class PyRAM:
                 self.cpg,
             )[:]
 
-        self.proc_time = process_time() - t0
+        proc_time = process_time() - t0
+        self.proc_time = proc_time
 
         return PyRAMResults(
             ranges=self.vr,
@@ -414,90 +496,70 @@ class PyRAM:
             pressure_grid=self.cpg,
             pressure_line=self.cpl,
             c0=self._c0,
-            proc_time=self.proc_time,
+            proc_time=proc_time,
             id=self._id,
         )
 
-    def check_inputs(self, z_ss, rp_ss, cw, z_sb, rp_sb, cb, rhob, attn, rbzb):
-        """Validate and store model inputs."""
+    def _validate_inputs(self) -> None:
+        """Validate inputs."""
 
         # Source and receiver depths
-        if not z_ss[0] <= self._zs <= z_ss[-1]:
+        if not self._z_ss[0] <= self._zs <= self._z_ss[-1]:
             raise ValueError("Source depth outside sound speed depths")
 
-        if not z_ss[0] <= self._zr <= z_ss[-1]:
+        if not self._z_ss[0] <= self._zr <= self._z_ss[-1]:
             raise ValueError("Receiver depth outside sound speed depths")
 
         # Water sound-speed profiles
-        if cw.shape != (z_ss.size, rp_ss.size):
+        if self._cw.shape != (self._z_ss.size, self._rp_ss.size):
             raise ValueError("Dimensions of z_ss, rp_ss, and cw must be consistent.")
 
         # Seabed profiles
-        expected_shape = (z_sb.size, rp_sb.size)
+        expected_shape = (self._z_sb.size, self._rp_sb.size)
 
         for _name, profile in (
-            ("cb", cb),
-            ("rhob", rhob),
-            ("attn", attn),
+            ("cb", self._cb),
+            ("rhob", self._rhob),
+            ("attn", self._attn),
         ):
             if profile.shape != expected_shape:
                 raise ValueError("Dimensions of z_sb, rp_sb, cb, rhob, and attn must be consistent.")
 
         # Bathymetry
-        if rbzb[:, 1].max() > z_ss[-1]:
+        if self._rbzb[:, 1].max() > self._z_ss[-1]:
             raise ValueError("Deepest sound speed point must be at or below deepest bathymetry point.")
 
-        # Store copies to avoid modifying caller-owned arrays
-        self._z_ss = np.array(z_ss, copy=True)
-        self._rp_ss = np.array(rp_ss, copy=True)
-        self._cw = np.array(cw, copy=True)
+    def _initialize_params(self, **kwargs: Any) -> None:
+        """Initialize model parameters from inputs and keyword arguments."""
 
-        self._z_sb = np.array(z_sb, copy=True)
-        self._rp_sb = np.array(rp_sb, copy=True)
-        self._cb = np.array(cb, copy=True)
-        self._rhob = np.array(rhob, copy=True)
-        self._attn = np.array(attn, copy=True)
-
-        self._rbzb = np.array(rbzb, copy=True)
-
-        # Range-dependence flags
-        self.rd_ss = self._rp_ss.size > 1
-        self.rd_sb = self._rp_sb.size > 1
-        self.rd_bt = self._rbzb.shape[0] > 1
-
-    def set_params(self, **kwargs):
-        """Set the parameters from the keyword arguments"""
-
-        self._np = kwargs.get("np", PyRAM._np_default)
+        self._np: int = int(kwargs.get("np", PyRAM._np_default))
 
         c0 = np.mean(self._cw[:, 0]) if len(self._cw.shape) > 1 else np.mean(self._cw)
-        self._c0 = kwargs.get("c0", c0)
-
-        self._lambda = lambda0 = self._c0 / self._freq
+        self._c0: float = float(kwargs.get("c0", c0))
+        lambda0: float = self._c0 / self._freq
+        self._lambda = lambda0
 
         # dr and dz are based on c0 to get sensible output steps
-        self._dr = kwargs.get("dr", 0.5 * lambda0)
-        self._dz = kwargs.get("dz", 0.05 * lambda0)
+        self._dr: float = float(kwargs.get("dr", 0.5 * lambda0))
+        self._dz: float = float(kwargs.get("dz", 0.05 * lambda0))
 
-        self._ndr = kwargs.get("ndr", PyRAM._ndr_default)
-        self._ndz = kwargs.get("ndz", PyRAM._ndz_default)
+        self._ndr: int = int(kwargs.get("ndr", PyRAM._ndr_default))
+        self._ndz: int = int(kwargs.get("ndz", PyRAM._ndz_default))
 
-        self._zmplt = kwargs.get("zmplt", self._rbzb[:, 1].max())
+        self._zmplt: float = float(kwargs.get("zmplt", self._rbzb[:, 1].max()))
 
-        self._rmax = kwargs.get(
-            "rmax", np.max([self._rp_ss.max(), self._rp_sb.max(), self._rbzb[:, 0].max()])
+        self._rmax: float = float(
+            kwargs.get("rmax", np.max([self._rp_ss.max(), self._rp_sb.max(), self._rbzb[:, 0].max()]))
         )
 
-        self._ns = kwargs.get("ns", PyRAM._ns_default)
-        self._rs = kwargs.get("rs", self._rmax + self._dr)
+        self._ns: int = int(kwargs.get("ns", PyRAM._ns_default))
+        self._rs: float = float(kwargs.get("rs", self._rmax + self._dr))
 
-        self._lyrw = kwargs.get("lyrw", PyRAM._lyrw_default)
+        self._lyrw: float = float(kwargs.get("lyrw", PyRAM._lyrw_default))
 
-        self._id = kwargs.get("id", PyRAM._id_default)
+        self._id: int = int(kwargs.get("id", PyRAM._id_default))
 
-        self.proc_time = None
-
-    def setup(self):
+    def setup(self) -> None:
         """Initialise the parameters, acoustic field, and matrices"""
 
         if self._rbzb[-1, 0] < self._rmax:
@@ -533,21 +595,21 @@ class PyRAM:
         self.pd1 = np.zeros(self._np, dtype=np.complex128)
         self.pd2 = np.zeros(self._np, dtype=np.complex128)
 
-        self.alpw = np.zeros(self.nz + 2)
-        self.alpb = np.zeros(self.nz + 2)
-        self.f1 = np.zeros(self.nz + 2)
-        self.f2 = np.zeros(self.nz + 2)
-        self.f3 = np.zeros(self.nz + 2)
-        self.ksqw = np.zeros(self.nz + 2)
+        self.alpw = np.zeros(self.nz + 2, dtype=np.float64)
+        self.alpb = np.zeros(self.nz + 2, dtype=np.float64)
+        self.f1 = np.zeros(self.nz + 2, dtype=np.float64)
+        self.f2 = np.zeros(self.nz + 2, dtype=np.float64)
+        self.f3 = np.zeros(self.nz + 2, dtype=np.float64)
+        self.ksqw = np.zeros(self.nz + 2, dtype=np.float64)
         nvr = int(np.floor(self._rmax / (self._dr * self._ndr)))
         self._rmax = nvr * self._dr * self._ndr
         nvz = int(np.floor(self.nzplt / self._ndz))
-        self.vr = np.arange(1, nvr + 1) * self._dr * self._ndr
-        self.vz = np.arange(1, nvz + 1) * self._dz * self._ndz
-        self.tll = np.zeros(nvr)
-        self.tlg = np.zeros([nvz, nvr])
-        self.cpl = np.zeros(nvr) * 1j
-        self.cpg = np.zeros([nvz, nvr]) * 1j
+        self.vr = np.asarray(np.arange(1, nvr + 1) * self._dr * self._ndr, dtype=np.float64)
+        self.vz = np.array(np.arange(1, nvz + 1) * self._dz * self._ndz, dtype=np.float64)
+        self.tll = np.zeros(nvr, dtype=np.float64)
+        self.tlg = np.zeros([nvz, nvr], dtype=np.float64)
+        self.cpl = np.zeros(nvr, dtype=np.complex128)
+        self.cpg = np.zeros((nvz, nvr), dtype=np.complex128)
         self.tlc = -1  # TL output range counter
 
         self.ss_ind = 0  # Sound speed profile range index
@@ -601,7 +663,7 @@ class PyRAM:
             self.pd2,
         )
 
-    def profl(self):
+    def profl(self) -> None:
         """Set up the profiles"""
 
         attnf = 10  # 10dB/wavelength at floor
@@ -642,10 +704,17 @@ class PyRAM:
 
         self.ksqw = (self.omega / self.cw) ** 2 - self.k0**2
         self.ksqb = ((self.omega / self.cb) * (1 + 1j * self.eta * self.attn)) ** 2 - self.k0**2
-        self.alpw = np.sqrt(self.cw / self._c0)
-        self.alpb = np.sqrt(self.rhob * self.cb / self._c0)
+        self.alpw = np.asarray(
+            np.sqrt(self.cw / self._c0),
+            dtype=np.float64,
+        )
 
-    def updat(self):
+        self.alpb = np.asarray(
+            np.sqrt(self.rhob * self.cb / self._c0),
+            dtype=np.float64,
+        )
+
+    def updat(self) -> None:
         """Matrix updates"""
 
         # Varying bathymetry
@@ -786,7 +855,7 @@ class PyRAM:
                 self.pd2,
             )
 
-    def selfs(self):
+    def selfs(self) -> None:
         """Set up the initial field. The self-starter"""
 
         # Conditions for the delta function
@@ -863,7 +932,7 @@ class PyRAM:
             self.u, self.v, self.s1, self.s2, self.s3, self.r1, self.r2, self.r3, self.iz, self.nz, self._np
         )
 
-    def epade(self, ip=1):
+    def epade(self, ip: int = 1) -> None:
         """Set the coefficients of the rational approximation"""
 
         n = 2 * self._np
@@ -877,8 +946,11 @@ class PyRAM:
         fact = np.zeros(n + 1)
         sig = self.k0 * self._dr
 
+        nu: int
+        alp: float
+
         if ip == 1:
-            nu, alp = 0, 0
+            nu, alp = 0, 0.0
         else:
             nu, alp = 1, -0.25
 
@@ -939,7 +1011,9 @@ class PyRAM:
             self.pd2[j] = -1 / dh2[j]
 
     @staticmethod
-    def deriv(n, sig, alp, dg, dh1, dh2, dh3, _bin, nu):
+    def deriv(
+        n: int, sig: Any, alp: Any, dg: Any, dh1: Any, dh2: Any, dh3: Any, _bin: Any, nu: Any
+    ) -> tuple[Any, Any, Any, Any]:
         """Return the derivatives of the operator function at x=0"""
 
         dh1[0] = 0.5 * 1j * sig
@@ -966,7 +1040,7 @@ class PyRAM:
         return dg, dh1, dh2, dh3
 
     @staticmethod
-    def gauss(n, a, b, pivot):
+    def gauss(n: int, a: Any, b: Any, pivot: Any) -> tuple[Any, Any]:
         """
         Gaussian elimination
         """
@@ -993,7 +1067,7 @@ class PyRAM:
         return a, b
 
     @staticmethod
-    def pivot(n, i, a, b):
+    def pivot(n: int, i: int, a: Any, b: Any) -> tuple[Any, Any]:
         """
         Rows are interchanged for stability
         """
@@ -1014,7 +1088,7 @@ class PyRAM:
         return a, b
 
     @staticmethod
-    def fndrt(a, n, z, guerre):
+    def fndrt(a: Any, n: int, z: Any, guerre: Any) -> tuple[Any, Any]:
         """Find the roots of polynomial a"""
 
         if n == 1:
@@ -1043,7 +1117,7 @@ class PyRAM:
         return a, z
 
     @staticmethod
-    def guerre(a, n, z, err, nter):
+    def guerre(a: Any, n: int, z: Any, err: Any, nter: int) -> tuple[Any, Any, Any]:
         """
         Return the root of a polynomial of degree n > 2 by Laguerre's method
         """

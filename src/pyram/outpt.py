@@ -4,6 +4,7 @@ outpt function definition
 
 import numpy as np
 from numba import complex128, float64, int64, jit
+from numpy.typing import NDArray
 
 
 @jit(
@@ -24,11 +25,26 @@ from numba import complex128, float64, int64, jit
     ),
     nopython=True,
 )
-def outpt(r, mdr, ndr, ndz, tlc, f3, u, _dir, ir, tll, tlg, cpl, cpg):
+def outpt(
+    r: float,
+    mdr: int,
+    ndr: int,
+    ndz: int,
+    tlc: int,
+    f3: NDArray[np.float64],
+    u: NDArray[np.complex128],
+    _dir: float,
+    ir: int,
+    tll: NDArray[np.float64],
+    tlg: NDArray[np.float64],
+    cpl: NDArray[np.complex128],
+    cpg: NDArray[np.complex128],
+) -> NDArray[np.int64]:
     """
     Output transmission loss and complex pressure.
-    Complex pressure does not include cylindrical spreading term 1/sqrt(r)
-    or phase term exp(-j*k0*r).
+
+    Complex pressure does not include the cylindrical spreading
+    term 1/sqrt(r) or the phase term exp(-j*k0*r).
     """
 
     eps = 1e-20
