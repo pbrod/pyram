@@ -1,0 +1,188 @@
+#
+# Recommended release workflow
+#
+# Development:
+#   git checkout develop
+#   git pull origin develop
+#   pdm format
+#   pdm check-style
+#   pdm check-types
+#   pdm all-tests
+#
+# Prepare release:
+#   pdm install -G release   # Install release tools if needed
+#   pdm prepare-release      # update CHANGELOG.md. Inspect and verify.
+#   git log v1.3.0..HEAD --oneline > log.txt
+#   git add .
+#   git commit -m "Prepare release"
+#   git push
+#
+# Determine version:
+#   pdm bump suggest
+#   pdm bump pre-release --pre alpha              # creates 0.1.1a1 from 0.1.0
+#   pdm bump pre-release --pre beta               # creates 0.1.1b1 from 0.1.1a1
+#   pdm bump pre-release --pre release-candidate  # creates 0.1.1rc1 from 0.1.1b1
+#   pdm bump no-pre-release                       # creates 0.1.1 from 0.1.1rc1
+#   pdm bump micro                                # creates 0.1.2 from 0.1.1
+#   pdm bump minor                                # creates 0.2.0 from 0.1.2
+#   pdm bump major                                # creates 1.0.0 from 0.2.0
+#
+# Release:
+#  Merge develop into master:
+#   git checkout master
+#   git pull origin master
+#   git merge --no-ff develop
+#   git push origin master                        # Wait for CI to complete successfully
+#
+# Create and publish release tag:
+#   pdm bump tag                                  # creates a git tag with a leading v
+#   git push --tags                               # publish the new version
+#
+# Note:
+# Publishing to PyPI occurs when a tag beginning with 'v'
+# is pushed and the GitHub release workflow succeeds.
+#
+# Rebuilding the lock files:
+#   pdm lock-all
+#
+# After the release, merge master back into develop
+# so that release commits and version changes are present in develop:
+#   git checkout develop
+#   git pull origin develop
+#   git merge master
+#   git push origin develop
+
+[project]
+name = "pyram"
+dynamic = ["version"]
+description = "Python adaptation of the Range-dependent Acoustic Model (RAM)"
+authors = [
+    { name = "Marcus Donnelly", email = "marcus.k.donnelly@gmail.com" }
+]
+license = { file = "LICENSE.md" }
+readme = "README.md"
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+]
+
+keywords = [
+    "acoustics",
+    "underwater acoustics",
+    "parabolic equation",
+    "ocean acoustics",
+    "ram"
+]
+
+requires-python = ">=3.10"
+
+dependencies = [
+    "numpy>=1.25",
+    "numba>=0.58",
+]
+
+[project.optional-dependencies]
+plot =["matplotlib>=3.8.0"]
+
+[dependency-groups]
+test = [
+    "matplotlib>=3.8.0",
+    "mypy>=1.11.2",
+    "pytest>=8.0",
+    "ruff>=0.12",
+]
+release = [
+    "git-cliff>=2.6.1",
+    "pdm-bump>=0.9.8",
+]
+
+[tool.mypy]
+strict = true
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["B",  # flake8-bugbear
+          "C4", # flake8-comprehensions
+          "E4", # pycodestyle import checks
+          "E7", # pycodestyle statement checks
+          "E9", # pycodestyle runtime checks
+          "E501", # pycodestyle linelength checks
+          "F",  # PyFlakes
+          "I",  # isort
+          "Q",
+          "UP", # pyupgrade
+          ]
+
+# On top of the numpy convention, disable `D417`, which requires
+# documentation for every function parameter.
+ignore = ["D417"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+#docstring-code-format = true
+docstring-code-line-length = 100
+
+[tool.pytest.ini_options]
+# Register all custom markers here.
+markers = [
+    "slow: marks tests as slow (time-consuming)",
+    "benchmark: marks tests used for benchmarking",
+]
+doctest_optionflags = [
+    "NORMALIZE_WHITESPACE",
+    "IGNORE_EXCEPTION_DETAIL",
+    "ELLIPSIS"
+]
+addopts = "-rsxXf"
+testpaths = [
+    "src"
+]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.resolution]
+# Required to test upcoming Python / NumPy / Numba releases.
+allow-prereleases = true
+
+[tool.pdm.version]
+source = "file"
+path = "src/pyram/__init__.py"
+
+[tool.pdm.scripts]
+lock = "pdm lock -dG all"
+# Separate lock file for Python >= 3.14:
+lock-py314 = "pdm lock -L pdm.lock314 --python 3.14 --strategy no_direct_minimal_versions -dG all"
+lock-all = {composite = ["lock", "lock-py314"]}
+
+format = "ruff format ./src/"  # format code
+check-format = "ruff format --check ./src/"  # format code
+check-style = "ruff check ./src/"  # check code style
+check-types = "mypy ./src/"  # check types
+tests = {cmd = "pytest", env = {MPLBACKEND = "Agg"}}
+test = {composite = ["tests"]}
+all-tests = {composite = ["format", "check-style", "check-types", "tests"]}
+
+show-next-version = "git-cliff --bumped-version"  # calculate and print the next semantic version to stdout
+show-next-changelog = "git-cliff"
+append-changelog = "git-cliff --unreleased --prepend CHANGELOG.md"  # prepend new entries to CHANGELOG.md without footer part
+
+prepare-release = {composite = ["append-changelog"]}

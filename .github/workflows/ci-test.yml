@@ -1,0 +1,130 @@
+name: CI Tests
+
+on:
+  push:
+    branches:
+      - develop
+      - master
+
+  pull_request:
+    branches:
+      - develop
+      - master
+
+  schedule:
+    # Monday through Friday at 02:00 UTC
+    - cron: "0 2 * * 1-5"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+
+    timeout-minutes: 30
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+          # - "3.15.0-rc.1"
+
+    env:
+      MPLBACKEND: Agg
+
+    # Python 3.15 is experimental until Numba/llvmlite provide support.
+    continue-on-error: ${{ startsWith(matrix.python-version, '3.15') }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+         # Swap lockfile for Python 3.14 prior to setup-pdm
+      - name: Select Python 3.14 lockfile
+        if: startsWith(matrix.python-version, '3.14') || startsWith(matrix.python-version, '3.15')
+        # bash required for lockfile selection on all runners
+        shell: bash
+        run: |
+          if [ -f pdm.lock314 ]; then
+            echo "Python version: ${{ matrix.python-version }}"
+            echo "Using pdm.lock314 for Python >= 3.14"
+            cp pdm.lock314 pdm.lock
+          fi
+
+      - name: Install PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-path: |
+            pyproject.toml
+            pdm.lock
+            pdm.lock314
+
+      - name: Install dependencies
+        run: pdm sync -dG test
+
+      - name: Check formatting
+        run: pdm run check-format
+
+      - name: Lint
+        run: pdm run check-style
+
+      - name: Type check
+        run: pdm run check-types
+
+      - name: Run tests
+        run: pdm run tests
+
+  build:
+    name: Build distribution
+
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-path: |
+            pyproject.toml
+            pdm.lock
+
+      - name: Install dependencies
+        run: pdm sync -dG test
+
+      - name: Build package distribution
+        run: pdm build
+
+      - name: Verify wheel installation
+        run: |
+          python -m venv test_env
+
+          test_env/bin/python -m pip install --upgrade pip
+          test_env/bin/pip install dist/*.whl
+
+          test_env/bin/python -c "import pyram"
+          test_env/bin/python -c "from pyram import PyRAM, PyRAMResults"
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/*
